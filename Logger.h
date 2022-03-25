@@ -283,19 +283,28 @@ namespace logger {
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 0
 #define LOG_DEBUG(...) logger::Loggers::debug(__VA_ARGS__)
+#else
+#define LOG_DEBUG(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 1
 #define LOG_INFO(...) logger::Loggers::info(__VA_ARGS__)
+#else
+#define LOG_INFO(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 2
 #define LOG_WARNING(...) logger::Loggers::warning(__VA_ARGS__)
+#else
+#define LOG_WARNING(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 3
 #define LOG_ERROR(...) logger::Loggers::error(__VA_ARGS__)
 #define LOG_CRITICAL(...) logger::Loggers::critical(__VA_ARGS__)
+#else
+#define LOG_ERROR(...) (void)0
+#define LOG_CRITICAL(...) (void)0
 #endif
 
 #endif //DAWNSEEKER_LOGGER_H

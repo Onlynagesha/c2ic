@@ -310,7 +310,8 @@ public:
     */
     void refreshState() {
         // A = 2 ^ (-B) where B = number of bits of each generated unsigned integer
-        constexpr auto A = 1.0 / (1uLL << (sizeof(decltype(gen)::result_type) * 8));
+        constexpr int B = (int) decltype(gen)::word_size;
+        constexpr static double A = std::ldexp(1.0, -B);
         // Fast generation of pseudo-random value in [0, 1)
         double r = gen() * A;
         // [0, p): Active
@@ -358,11 +359,11 @@ using IMMGraph = graph::Graph<
         >;
 
 /*
-* Reads the graph from a file.
-* File format: 
-* Each line contains 4 values u, v, p, pBoost
+* Reads the graph.
+* File format:
+* The first line contains two integers V, E, denoting number of nodes and links
+* Then E lines, each line contains 4 values u, v, p, pBoost
 *   indicating a directed link u -> v with probabilities p and pBoost
-* Reads until EOF. 
 */
 inline IMMGraph readGraph(std::istream& in) {
     auto graph = IMMGraph(graph::tags::reservesLater);
@@ -385,6 +386,32 @@ inline IMMGraph readGraph(std::istream& in) {
 inline IMMGraph readGraph(const fs::path& path) {
     auto fin = std::ifstream(path);
     return readGraph(fin);
+}
+
+/*
+ * Reads the seed set.
+ * File format:
+ * The first line contains an integer Na, number of positive seeds.
+ * The next line contains Na integers, indices of the positive seeds.
+ * The third line contains an integer Nr, number of negative seeds.
+ * The fourth line contains Nr integers, indices of the negative seeds
+ */
+inline SeedSet readSeedSet(std::istream& in) {
+    std::size_t Na, Nr;
+    auto Sa = std::vector<std::size_t>();
+    auto Sr = std::vector<std::size_t>();
+
+    in >> Na;
+    for (std::size_t v, i = 0; i < Na; in >> v, Sa.push_back(v), i++);
+    in >> Nr;
+    for (std::size_t v, i = 0; i < Nr; in >> v, Sr.push_back(v), i++);
+
+    return {std::move(Sa), std::move(Sr)};
+}
+
+inline SeedSet readSeedSet(const fs::path& path) {
+    auto fin = std::ifstream(path);
+    return readSeedSet(fin);
 }
 
 #endif //DAWNSEEKER_IMMBASIC_H

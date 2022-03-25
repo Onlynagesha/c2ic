@@ -18,9 +18,9 @@ struct PRRNode : graph::BasicNode<std::size_t> {
 };
 
 using PRRGraph = graph::Graph<
-        PRRNode, IMMLink,
-        graph::SemiSparseIndexMap,
-        graph::ReserveStrategy::Nodes | graph::ReserveStrategy::Links | graph::ReserveStrategy::MaxIndex
+        PRRNode, IMMLink
+        ,graph::SemiSparseIndexMap
+        ,graph::ReserveStrategy::Nodes | graph::ReserveStrategy::Links | graph::ReserveStrategy::MaxIndex
         >;
 
 /*
@@ -29,6 +29,12 @@ using PRRGraph = graph::Graph<
 *   (i.e. Blocked links are filtered out)
 */
 PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t center);
+
+/*
+ * Creates a sample of PRR-sketch and writes the result to dest
+ * The PRRGraph object must have been reserved well
+ */
+void samplePRRSketch(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center);
 
 /*
 * Forward simulation of message propagation with no boosted nodes.

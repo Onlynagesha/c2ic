@@ -44,20 +44,14 @@ int getLimitDist(PRRGraph& prrGraph, IMMGraph& graph, const SeedSet& seeds, std:
 /*
 * Step 2: get the PRR-sketch sub-graph, all the nodes within limitDist
 */
-PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t center) 
+void samplePRRSketch(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center)
 {
-    // Creates an empty graph
-    auto prrGraph = PRRGraph({
-        {"maxIndex", graph.nNodes()},
-        {"links", graph.nLinks()},
-        {"nodes", graph.nNodes()}
-    });
-    // Step 1: calculates limitDist
+    prrGraph.reserveClear();
     auto limitDist = getLimitDist(prrGraph, graph, seeds, center);
 
     // Step 2: Do PRR-sketch, with boosted links into consideration
     // Do BFS for limitDist steps
-    auto Q = std::queue<std::size_t>({ center }); 
+    auto Q = std::queue<std::size_t>({ center });
     prrGraph.reserveClear();
     prrGraph.fastEmplaceNode(center);
 
@@ -68,7 +62,7 @@ PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t cent
         for (auto [from, e] : graph.fastLinksTo(cur)) {
             auto next = index(from);
             if (e.getState() == LinkState::Blocked) {
-                continue; 
+                continue;
             }
             // Add nodes to the sketched PRR-subgraph
             if (!prrGraph.hasNode(next)) {
@@ -83,7 +77,17 @@ PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t cent
             prrGraph.fastAddLink(e);
         }
     }
+}
 
+PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t center) 
+{
+    // Creates an empty graph
+    auto prrGraph = PRRGraph({
+        {"maxIndex", graph.nNodes()},
+        {"links", graph.nLinks()},
+        {"nodes", graph.nNodes()}
+    });
+    samplePRRSketch(graph, prrGraph, seeds, center);
     return prrGraph;
 }
 
@@ -157,7 +161,7 @@ void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
 */
 void calculateGainFastR(PRRGraph& prrGraph, std::size_t center)
 {
-    auto& centerNode = prrGraph[center]; 
+    graph::NodeOrIndex auto& centerNode = prrGraph[center];
     // Initializes distR to inf
     for (auto& node : prrGraph.nodes()) {
         node.distR = halfMax<int>; 
@@ -194,7 +198,7 @@ void calculateGainFastR(PRRGraph& prrGraph, std::size_t center)
 */
 void calculateGainFast(PRRGraph& prrGraph, std::size_t center)
 {
-    auto& centerNode = prrGraph[center];
+    graph::NodeOrIndex auto& centerNode = prrGraph[center];
     // Due to monotonicity, if center node has state Ca,
     //  then boosting can not make its state any better
     // If some boosting node changes center's state to Ca+,
@@ -214,7 +218,7 @@ void calculateGainFast(PRRGraph& prrGraph, std::size_t center)
         calculateGainFastR(prrGraph, center); 
     }
 
-    bool crHigher = NodeState::Cr > NodeState::CaPlus;
+    bool crHigher = (NodeState::Cr <=> NodeState::CaPlus) == std::strong_ordering::greater;
     
     // Initializes all the maxDistP (including center node) as inf
     for (auto& node : prrGraph.nodes()) {
@@ -226,7 +230,7 @@ void calculateGainFast(PRRGraph& prrGraph, std::size_t center)
         return A->maxDistP < B->maxDistP; 
     };
     // Initializes the priority-queue with {center}, 
-    auto Q = std::priority_queue<PRRNode*, std::vector<PRRNode*>, decltype(compByDistA)>();
+    static auto Q = std::priority_queue<PRRNode*, std::vector<PRRNode*>, decltype(compByDistA)>();
     centerNode.maxDistP = 
         centerNode.dist - (crHigher && centerNode.state == NodeState::Cr);
     Q.push(&centerNode);
@@ -259,8 +263,8 @@ void calculateGainFast(PRRGraph& prrGraph, std::size_t center)
 double _calculateGainSlow(
     PRRGraph prrGraph, std::size_t maxIndex, std::size_t v, std::size_t center)
 {
-    auto& vNode = prrGraph[v]; 
-    auto& centerNode = prrGraph[center]; 
+    graph::NodeOrIndex auto& vNode = prrGraph[v];
+    graph::NodeOrIndex auto& centerNode = prrGraph[center];
     auto oldGain = gain(centerNode.state);
 
     // Boost the node v, Ca -> Ca+, or Cr -> Cr-
@@ -274,8 +278,8 @@ double _calculateGainSlow(
     // vis[u] = whether the node u has been pushed to the queue
     auto vis = std::vector<bool>(maxIndex + 1);
 
-    auto Q = std::queue<PRRNode*>({ &vNode }); 
-    vis[v] = true; 
+    auto Q = std::queue<PRRNode*>({&vNode});
+    vis[v] = true;
 
     for (; !Q.empty(); Q.pop()) {
         auto& cur = *Q.front(); 
@@ -293,8 +297,7 @@ double _calculateGainSlow(
             //      i.e. message arrives earlier and manages to replace the old one
             //  (2) cur.dist + 1 == e.to.dist,
             //      but some message with higher priority replaces the old one
-            if (nextDist < to.dist ||
-                nextDist == to.dist && cur.state > to.state) {
+            if (nextDist < to.dist || nextDist == to.dist && (cur.state <=> to.state) == std::strong_ordering::greater) {
                 // Replace the target's state to the current one
                 //  that arrives earlier due to boosting, or has higher priority
                 to.dist = nextDist; 

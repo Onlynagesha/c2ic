@@ -12,6 +12,8 @@
 struct AlgorithmArguments {
     // Path of the graph file
     std::string     graphPath;
+    // Path of the seed set file
+    std::string     seedSetPath;
     // Priority values of the 4 node states
     // Default: Ca+ > Cr- > Cr > Ca
     // (whose gain is the upper bound for all 24 combinations)
@@ -104,6 +106,7 @@ struct AlgorithmArguments {
 
         auto res = std::string("Arguments:\n");
         res += format(spec, width, "graphPath", graphPath);
+        res += format(spec, width, "seedSetPath", seedSetPath);
 
         auto priorityStr = std::string();
         for (int i = 3; i >= 0; i--) {

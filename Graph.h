@@ -559,40 +559,34 @@ namespace graph {
     private:
         // Helper function deep-copying the adjacency lists whose items are references
         // Migrates all the references to the copied this->_nodes and this->_links
-        auto _deepCopy(const Graph& other, std::vector<AdjList> Graph::* which) {
-            auto nodesHead = & other._nodes.front();
-            auto linksHead = & other._links.front();
+        void _deepCopy(const Graph& other) {
+            if (other._links.empty()) {
+                return;
+            }
+            auto nodesDiffBytes = reinterpret_cast<const char*>(&_nodes.front())
+                    - reinterpret_cast<const char*>(&other._nodes.front());
+            auto linksDiffBytes = reinterpret_cast<const char*>(&_links.front())
+                    - reinterpret_cast<const char*>(&other._links.front());
 
-            auto n = (other.*which).size();
-            auto res = std::vector<AdjList>(n);
-
-            for (std::size_t v = 0; v < n; v++) {
-                const auto& L = (other.*which)[v];
-                res[v].reserve(L.size());
-
-                for (std::size_t i = 0; i != L.size(); i++) {
-                    auto [node, link] = L[i];
-                    // Deduces the indices
-                    auto nodeIndex = &node - nodesHead;
-                    auto linkIndex = &link - linksHead;
-                    // Sets the new references
-                    res[v].push_back(RefLink(_nodes[nodeIndex], _links[linkIndex]));
+            for (auto vp: {&_adjList, &_invAdjList}) {
+                for (auto& L: *vp) {
+                    auto* pL = reinterpret_cast<std::vector<std::pair<const char*, const char*>>*>(&L);
+                    for (auto& item: *pL) {
+                        item.first += nodesDiffBytes;
+                        item.second += linksDiffBytes;
+                    }
                 }
             }
-            return res;
         }
 
     public:
         // Copy constructor. For fast-access adjacency list items,
         //  a _deepCopy() process is required.
         Graph(const Graph& other):
-        _nodes(other._nodes), _links(other._links), _indexMap(other._indexMap) {
-            if constexpr (!enablesFastRefLink) {
-                _adjList = other._adjList;
-                _invAdjList = other._invAdjList;
-            } else {
-                _adjList = _deepCopy(other, &Graph::_adjList);
-                _invAdjList = _deepCopy(other, &Graph::_invAdjList);
+        _nodes(other._nodes), _links(other._links), _adjList(other._adjList),
+        _invAdjList(other._invAdjList), _indexMap(other._indexMap) {
+            if constexpr (enablesFastRefLink) {
+                _deepCopy(other);
             }
         }
 

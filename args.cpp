@@ -15,6 +15,10 @@ bool parseArgsFromTokens(
             .help("Path of the graph file")
             .required();
 
+    parser.add_argument("-seedset")
+            .help("Path of the seed set file")
+            .required();
+
     parser.add_argument("-k")
             .help("Number of boosted nodes")
             .scan<'i', int>()
@@ -44,6 +48,7 @@ bool parseArgsFromTokens(
     try {
         parser.parse_args(tokens);
         args.graphPath = parser.get("-graph");
+        args.seedSetPath = parser.get("-seedset");
 
         args.k = parser.get<int>("-k");
         args.epsilon = parser.get<double>("-epsilon");

@@ -4,11 +4,6 @@
 #include "global.h"
 #include <chrono>
 
-namespace {
-    template <class A, class B>
-    concept NotSameAs = !std::same_as<A, B>;
-}
-
 struct Timer {
 public:
     using Clock = ch::system_clock;
@@ -35,7 +30,7 @@ public:
     }
 
     // For customized Duration type
-    template <NotSameAs<Duration> OtherDuration>
+    template <class OtherDuration> requires (!std::same_as<OtherDuration, Duration>)
     OtherDuration elapsed() const {
         return ch::duration_cast<OtherDuration>(Clock::now() - timePoint);
     }
