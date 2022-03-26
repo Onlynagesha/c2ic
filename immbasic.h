@@ -63,16 +63,12 @@ inline int      nodeStatePriority[5];
 * Compares two node states by priority
 * A > B means A has higher priority than B
 */
-inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
-    return nodeStatePriority[static_cast<int>(A)] <=> nodeStatePriority[static_cast<int>(B)];
-}
+std::strong_ordering operator <=> (NodeState A, NodeState B);
 
 /*
 * Compares two link states as order Boosted > Active > Blocked
 */
-inline std::strong_ordering operator <=> (LinkState A, LinkState B) {
-    return static_cast<int>(A) <=> static_cast<int>(B);
-}
+std::strong_ordering operator <=> (LinkState A, LinkState B);
 
 /*
 * Gets the gain of certain state
@@ -240,6 +236,20 @@ public:
     [[nodiscard]] const auto& Sr() const {
         return _Sr;
     }
+
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "bugprone-sizeof-container"
+    [[nodiscard]] std::size_t totalBytesUsed() const {
+        std::size_t res = sizeof(_Sa) + sizeof(_Sr) + sizeof(_bitsetA) + sizeof(_bitsetR);
+        res += _Sa.capacity() * sizeof(decltype(_Sa)::value_type);
+        res += _Sr.capacity() * sizeof(decltype(_Sr)::value_type);
+        // The two bitsets
+        res += _bitsetA.capacity() / 8;
+        res += _bitsetR.capacity() / 8;
+
+        return res;
+    }
+#pragma clang diagnostic pop
 };
 
 /*
@@ -313,7 +323,7 @@ public:
         constexpr int B = (int) decltype(gen)::word_size;
         constexpr static double A = std::ldexp(1.0, -B);
         // Fast generation of pseudo-random value in [0, 1)
-        double r = gen() * A;
+        double r = (double)gen() * A;
         // [0, p): Active
         if (r < p) {
             state = LinkState::Active;

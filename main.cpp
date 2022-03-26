@@ -20,26 +20,29 @@ auto checkGain(IMMGraph& graph, const SeedSet& seeds, unsigned testId) {
             "checkGain", sout, logger::LogLevel::Debug);
     logger::Loggers::add(debugLogger);
 
+    LOG_DEBUG(format("center = {}", v));
+
     auto prrGraphFast = samplePRRSketch(graph, seeds, v);
     LOG_DEBUG("checkGain", "Dump PRR-sketch:");
     for (const auto& link : prrGraphFast.links()) {
         LOG_DEBUG("checkGain", format(
                 "  {} -> {}: state = {}", link.from(), link.to(), link.forceGetState()));
     }
-    simulateNoBoost(prrGraphFast, seeds);
 
     auto prrGraphSlow = prrGraphFast;
 
-    calculateGainFast(prrGraphFast, v);
-    calculateGainSlow(prrGraphSlow, v);
+    calculateGainFast(prrGraphFast);
+    calculateGainSlow(prrGraphSlow);
 
     LOG_DEBUG("checkGain", "Result of PRR-Sketch with FAST gain computation:");
     for (const auto& node : prrGraphFast.nodes()) {
-        LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(), node.gain));
+        LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(),
+                                      gain(node.centerStateTo) - gain(prrGraphFast.centerState)));
     }
     LOG_DEBUG("checkGain", "Result of PRR-Sketch with SLOW gain computation:");
     for (const auto& node : prrGraphSlow.nodes()) {
-        LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(), node.gain));
+        LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(),
+                                      gain(node.centerStateTo) - gain(prrGraphSlow.centerState)));
     }
 
     // Do checking
@@ -53,19 +56,20 @@ auto checkGain(IMMGraph& graph, const SeedSet& seeds, unsigned testId) {
         if (!prrGraphFast.hasNode(i) || !prrGraphSlow.hasNode(i)) {
             continue;
         }
-        if (prrGraphFast[i].gain != prrGraphSlow[i].gain) {
+        if (gain(prrGraphFast[i].centerStateTo) != gain(prrGraphSlow[i].centerStateTo)) {
             ok = false;
             LOG_ERROR("checkGain", format(
                     "Inconsistent gain of index {}: FAST {} vs. SLOW {}",
-                    i, prrGraphFast[i].gain, prrGraphSlow[i].gain));
+                    i, gain(prrGraphFast[i].centerStateTo) - gain(prrGraphFast.centerState),
+                    gain(prrGraphSlow[i].centerStateTo) - gain(prrGraphFast.centerState)));
         }
-        totalGain += prrGraphFast[i].gain;
+        totalGain += gain(prrGraphFast[i].centerStateTo) - gain(prrGraphFast.centerState);
     }
     if (ok) { // NOLINT(bugprone-branch-clone)
         LOG_INFO(format("Test #{}: v = {}, PRR-sketch size = ({}, {}), total gain = {:.1f}, time used = {:.3f} sec.",
                         testId, v, prrGraphFast.nNodes(), prrGraphFast.nLinks(), totalGain, timer.elapsed().count()));
     } else {
-        LOG_INFO(format("Dump info:\n{}", sout.str()));
+        LOG_INFO(format("Error in test #{}: Dump info:\n{}", testId, sout.str()));
     }
 
     logger::Loggers::remove(debugLogger->id());
@@ -84,20 +88,26 @@ void testPRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t count) {
     });
 
     auto timer = Timer();
+    double totalGain = 0.0;
+
     for (std::size_t i = 1; i <= count; i++) {
         auto v = (std::size_t)gen() % graph.nNodes();
         samplePRRSketch(graph, prrGraph, seeds, v);
-        simulateNoBoost(prrGraph, seeds);
-        calculateGainFast(prrGraph, v);
+        calculateGainFast(prrGraph);
+
+        for (const auto& node: prrGraph.nodes()) {
+            totalGain += gain(node.centerStateTo) - gain(prrGraph.centerState);
+        }
 
         if (i % 100 == 0) {
-            LOG_INFO(format("After iteration #{}: time used = {:.3f} sec.", i, timer.elapsed().count()));
+            LOG_INFO(format("After iteration #{}: total gain = {:.1f}, time used = {:.3f} sec.",
+                            i, totalGain, timer.elapsed().count()));
         }
     }
 }
 
 int main(int argc, char** argv) {
-    logger::Loggers::add(std::make_shared<logger::Logger>("logger", std::clog, logger::LogLevel::Info));
+    logger::Loggers::add(std::make_shared<logger::Logger>("logger", std::clog, logger::LogLevel::Debug));
 
     auto args = AlgorithmArguments();
     if (!parseArgs(args, argc, argv)) {
@@ -111,20 +121,30 @@ int main(int argc, char** argv) {
     args.updateGainAndPriority();
     LOG_INFO(args.dump());
 
-    constexpr std::size_t N = 2000;
-    testPRRSketch(graph, seeds, N);
+    auto res = PR_IMM(graph, seeds, args);
+    LOG_INFO(format("Final gain = {:.3f}", res.totalGain));
 
-    auto timer = Timer();
-    constexpr unsigned T = 100;
-    bool ok = true;
-    for (unsigned i = 1; ok && i <= T; i++) {
-        if (!checkGain(graph, seeds, i)) {
-            ok = false;
-        }
-    }
-    if (ok) {
-        LOG_INFO(format("All {} test cases OK. Total time used: {:.3f} sec.", T, timer.elapsed().count()));
-    }
+    auto joined = res.boostedNodes
+            | vs::transform([](std::size_t x) { return std::to_string(x) + " "; })
+            | vs::join
+            | vs::common;
+    auto nodesStr = std::string(joined.begin(), joined.end());
+    LOG_INFO(format("Selected nodes: {}", nodesStr));
+
+//    constexpr std::size_t N = 2000;
+//    testPRRSketch(graph, seeds, N);
+
+//    auto timer = Timer();
+//    constexpr unsigned T = 1000;
+//    bool ok = true;
+//    for (unsigned i = 1; ok && i <= T; i++) {
+//        if (!checkGain(graph, seeds, i)) {
+//            ok = false;
+//        }
+//    }
+//    if (ok) {
+//        LOG_INFO(format("All {} test cases OK. Total time used: {:.3f} sec.", T, timer.elapsed().count()));
+//    }
 
     return 0;
 }

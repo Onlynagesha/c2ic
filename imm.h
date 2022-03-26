@@ -1,11 +1,10 @@
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "bugprone-sizeof-container"
 #ifndef DAWNSEEKER_IMM_H
 #define DAWNSEEKER_IMM_H
 
 #include "args.h"
 #include "global.h"
 #include "immbasic.h"
+#include "Logger.h"
 #include "PRRGraph.h"
 #include <cmath>
 #include <locale>
@@ -16,32 +15,50 @@
 * Collection of all PRR-sketches
 */
 struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
+    struct InitLater {};
+    static inline auto initLater = InitLater{};
+
     struct Node {
         std::size_t index;
-        double      gain;
+        NodeState   centerStateTo;
+    };
+
+    struct SimplifiedPRRGraph {
+        NodeState           centerState;
+        std::vector<Node>   items;
     };
 
     // Number of nodes
-    std::size_t                             n;
+    std::size_t                         n{};
+    // Seed set
+    SeedSet                             seeds;
     // prrGraph[i] = the i-th PRR-sketch
     // Each sketch is simplified as a list of {v, g} pairs,
     //  indicating that node v makes gain = g in this PRR-sketch
-    std::vector<std::vector<Node>>          prrGraph;
+    std::vector<SimplifiedPRRGraph>     prrGraph;
     // contrib[v] = list of indices of PRR-sketches
-    //  where node v makes non-zero gain
-    std::vector<std::vector<std::size_t>>   contrib;
+    //  where node v contributes non-zero gain
+    std::vector<std::vector<Node>>      contrib;
     // totalGain[v] = total gain of the node v
-    std::vector<double>                     totalGain;
+    std::vector<double>                 totalGain;
 
-    PRRGraphCollection() = default;
-    explicit PRRGraphCollection(std::size_t n) : n(n), contrib(n), totalGain(n) {}
+    PRRGraphCollection() = delete;
 
-    void init(std::size_t n) {
+    explicit PRRGraphCollection(InitLater) {}
+
+    explicit PRRGraphCollection(std::size_t n, SeedSet seeds) :
+    n(n), seeds(std::move(seeds)), contrib(n), totalGain(n, 0.0) {}
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wshadow"
+    void init(std::size_t n, SeedSet seeds) {
         this->n = n;
+        this->seeds = std::move(seeds);
         contrib.clear();
         contrib.resize(n);
         totalGain.resize(n, 0.0);
     }
+#pragma clang diagnostic pop
 
     void add(const PRRGraph& G) {
         auto prrList = std::vector<Node>();
@@ -49,19 +66,95 @@ struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
         auto prrListId = prrGraph.size();
 
         for (const auto& node : G.nodes()) {
+            double nodeGain = gain(node.centerStateTo) - gain(G.centerState);
             // Zero-gain nodes are skipped to save memory usage
-            if (node.gain == 0.0) {
-                return;
+            if (nodeGain <= 0.0) {
+                continue;
             }
             auto nodeId = node.index();
-            prrList.push_back(Node{ .index = nodeId, .gain = node.gain });
-            contrib[nodeId].push_back(prrListId);
-            totalGain[nodeId] += node.gain;
+            prrList.push_back(Node{ .index = nodeId, .centerStateTo = node.centerStateTo });
+            contrib[nodeId].push_back(Node{.index = prrListId, .centerStateTo = node.centerStateTo });
+            totalGain[nodeId] += nodeGain;
         }
 
-        prrGraph.push_back(std::move(prrList));
+        if (!prrList.empty()) {
+            prrGraph.push_back(SimplifiedPRRGraph{
+                .centerState = G.centerState,
+                .items = std::move(prrList)
+            });
+        }
     }
 
+private:
+    struct StateChangeRecord {
+        std::size_t index;
+        NodeState   oldCenterState;
+    };
+    std::vector<StateChangeRecord>  changeRecords;
+
+    void changeCenterState (std::size_t prrIndex, NodeState to) {
+        changeRecords.push_back(StateChangeRecord{
+                .index = prrIndex,
+                .oldCenterState = this->prrGraph[prrIndex].centerState
+        });
+        prrGraph[prrIndex].centerState = to;
+    };
+
+    void restoreCenterState () {
+        for (const auto& rec: changeRecords | vs::reverse) {
+            prrGraph[rec.index].centerState = rec.oldCenterState;
+        }
+        LOG_INFO(format("Size of PRR-sketch changeRecords: {}", changeRecords.size()));
+        changeRecords.clear();
+    };
+
+    template <class OutIter>
+    requires std::output_iterator<OutIter, std::size_t>
+             || std::same_as<OutIter, std::nullptr_t>
+    double _select(std::size_t k, OutIter iter) {
+        double res = 0.0;
+        // Makes a copy of the totalGain[] to updateValues during selection
+        auto totalGainCopy = totalGain;
+        // The seeds shall not be selected
+        for (auto a: seeds.Sa()) {
+            totalGainCopy[a] = halfMin<double>;
+        }
+        for (auto r: seeds.Sr()) {
+            totalGainCopy[r] = halfMin<double>;
+        }
+
+        for (std::size_t i = 0; i < k; i++) {
+            // cur = The node chosen in this turn, with the highest total gain
+            std::size_t cur = rs::max_element(totalGainCopy) - totalGainCopy.begin();
+            // Output is only enabled when iter != nullptr
+            if constexpr (!std::is_same_v<OutIter, std::nullptr_t>) {
+                *iter++ = cur;
+            }
+            res += totalGainCopy[cur];
+            LOG_INFO(format("Selected node #{}: index = {}, result += {:.2f}", i + 1, cur, totalGainCopy[cur]));
+            // Sets the total gain of selected node as -inf
+            //  so that it can never be selected again
+            totalGainCopy[cur] = halfMin<double>;
+
+            for (auto [prrId, centerStateTo] : contrib[cur]) {
+                // Attempts to cover the center state of current PRR-sketch
+                auto cmp = centerStateTo <=> prrGraph[prrId].centerState;
+                if (cmp != std::strong_ordering::greater) {
+                    continue;
+                }
+                double curGain = gain(centerStateTo) - gain(prrGraph[prrId].centerState);
+                for (auto [j, s] : prrGraph[prrId].items) {
+                    totalGainCopy[j] -= curGain;
+                }
+                changeCenterState(prrId, centerStateTo);
+            }
+        }
+
+        restoreCenterState();
+        return res;
+    }
+
+public:
     // Selects k boosted nodes with greedy algorithm
     // Returns the total gain contributed by the selected nodes. 
     // Note that the gain value returned is a sum of all the |R| PRR-sketches
@@ -73,59 +166,25 @@ struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
     // ** FOR MONOTONE & SUB-MODULAR CASES ONLY **
     template <class OutIter>
         requires std::output_iterator<OutIter, std::size_t>
-    || std::same_as<OutIter, std::nullptr_t>
-        double greedySelect(std::size_t k, OutIter iter) const {
-        double res = 0.0;
-        // Makes a copy of the totalGain[] to updateValues during selection
-        auto totalGainCopy = totalGain;
-        // covered[i] = whether the i-th PRR-sketch is covered by some selected node
-        auto covered = std::vector<bool>(prrGraph.size());
-
-        for (std::size_t i = 0; i < k; i++) {
-            // cur = The node chosen in this turn, with highest total gain
-            std::size_t cur = rs::max(
-                vs::iota(std::size_t{0}, n),
-                [&](std::size_t A, std::size_t B) {
-                    return totalGainCopy[A] > totalGainCopy[B];
-                });
-            // Output is only enabled when iter != nullptr
-            if constexpr (!std::is_same_v<OutIter, std::nullptr_t>) {
-                *iter++ = cur;
-            }
-            res += totalGainCopy[cur];
-            // Sets the total gain of selected node as -inf
-            //  so that it can never be selected again
-            totalGainCopy[cur] = halfMin<double>;
-            // Eliminates the influence of the selected node 
-            // For each PRR-sketch that contains the selected node cur,
-            //  it is already covered by cur, 
-            //  thus all the influences this PRR-sketch provides
-            //  should be eliminated.
-            for (std::size_t prrId : contrib[cur]) {
-                // If covered previously, skip and do not cover again
-                if (covered[prrId]) {
-                    continue;
-                }
-                covered[prrId] = true;
-                for (auto [i, g] : prrGraph[prrId]) {
-                    totalGainCopy[i] -= g;
-                }
-            }
-        }
+        || std::same_as<OutIter, std::nullptr_t>
+    double select(std::size_t k, OutIter iter) const {
+        double res = const_cast<PRRGraphCollection*>(this)->template _select(k, iter);
         return res;
     }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "bugprone-sizeof-container"
     /*
     * Returns an estimation of bytes used
     */
     [[nodiscard]] std::size_t totalBytesUsed() const {
-        auto bytes = sizeof(n); 
+        auto bytes = sizeof(n) + seeds.totalBytesUsed();
         // Total bytes of prrGraph[][]
         // .capacity() is used instead of .size() to calculate actual memory allocated
         bytes += sizeof(prrGraph)
             + prrGraph.capacity() * sizeof(decltype(prrGraph)::value_type);
         for (const auto& inner : prrGraph) {
-            bytes += inner.capacity() * sizeof(std::remove_cvref_t<decltype(inner)>::value_type);
+            bytes += inner.items.capacity() * sizeof(std::remove_cvref_t<decltype(inner.items)>::value_type);
         }
         // Total bytes of contrib[][]
         bytes += sizeof(contrib)
@@ -139,6 +198,7 @@ struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
 
         return bytes; 
     }
+#pragma clang diagnostic pop
 
     /*
     * Returns the sum of the number of nodes in each PRR-sketch
@@ -147,7 +207,7 @@ struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
     [[nodiscard]] std::size_t nTotalNodes() const {
         auto res = std::size_t{ 0 }; 
         for (const auto& inner : prrGraph) {
-            res += inner.size(); 
+            res += inner.items.size();
         }
         return res; 
     }
@@ -163,13 +223,13 @@ struct PRRGraphCollection { // NOLINT(cppcoreguidelines-pro-type-member-init)
         // Dumps total number of nodes 
         auto nNodes = nTotalNodes(); 
         info += format(loc, "Total number of nodes = {}, {:.3f} per PRR-sketch in average\n", 
-            nNodes, 1.0 * nNodes / prrGraph.size());
+            nNodes, 1.0 * (double)nNodes / (double)prrGraph.size());
         // Dumps memory used
         auto bytes = totalBytesUsed();
         info += format(loc, "Memory used = {} bytes", bytes);
         if (bytes >= 1024) {
             static const char* units[3] = { "KibiBytes", "MebiBytes", "GibiBytes" };
-            double value = bytes / 1024.0;
+            double value = (double)bytes / 1024.0;
             int unitId = 0;
 
             for (; unitId < 2 && value >= 1024.0; ++unitId, value /= 1024.0) {} 
@@ -193,4 +253,3 @@ struct IMMResult {
 IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, AlgorithmArguments args); 
 
 #endif //DAWNSEEKER_IMM_H
-#pragma clang diagnostic pop

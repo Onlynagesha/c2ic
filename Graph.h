@@ -133,7 +133,8 @@ namespace graph {
         None = 0,
         Nodes = 1,
         Links = 2,
-        MaxIndex = 4
+        MaxIndex = 4,
+        All = 7
     };
 
     // Support of set union operator
@@ -614,6 +615,7 @@ namespace graph {
         }
 
         void reserveClear() {
+            _nodes.clear();
             _links.clear();
             for (auto& e: _adjList) {
                 e.clear();
@@ -633,7 +635,7 @@ namespace graph {
             }
 
             if (args.nodes != ReserveArguments::notProvided) {
-                _nodes.resize(args.nodes);
+                _nodes.reserve(args.nodes);
                 _adjList.resize(args.nodes);
                 _invAdjList.resize(args.nodes);
             }
@@ -667,18 +669,9 @@ namespace graph {
             return _addNode<tags::DoCheck::Yes>(_indexMap.get(node), std::move(node));
         }
 
-        Node* fastAddNode(Node node) {
-            return _addNode<tags::DoCheck::No>(_indexMap.get(node), std::move(node));
-        }
-
         template <class... Args>
         Node* emplaceNode(Args&&... args) {
             return addNode(Node(std::forward<Args>(args)...));
-        }
-
-        template <class... Args>
-        Node* fastEmplaceNode(Args&&... args) {
-            return fastAddNode(Node(std::forward<Args>(args)...));
         }
 
         Link* addLink(Link link) {

@@ -42,7 +42,7 @@ template <class I> requires std::integral<I> || std::floating_point<I>
 constexpr I halfMax = std::numeric_limits<I>::max() / 2;
 
 template <class I> requires std::integral<I> || std::floating_point<I>
-constexpr I halfMin = std::numeric_limits<I>::min() / 2;
+constexpr I halfMin = std::numeric_limits<I>::lowest() / 2;
 
 inline auto createMT19937Generator(unsigned initialSeed = 0) noexcept {
     return std::mt19937(initialSeed != 0 ? initialSeed : std::random_device()());
