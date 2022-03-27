@@ -10,5 +10,7 @@
 
 # Requirements
 
-* For MSVC: Use Visual Studio 2022 and `/std:c++latest` complier flag
-* For GCC: Version >= GCC 11, and use `-std=c++20` compiler flag
+* For MSVC: Use Visual Studio 2022 and `/std:c++latest` compiler flag
+* For GCC: 
+  * Version >= GCC 11, and use `-std=c++20` compiler flag
+  * Install C++ lib via `sudo apt install libfmt-dev` and use `-lfmt` compiler flag 
