@@ -31,9 +31,13 @@ struct AlgorithmArguments {
     std::size_t     n;
     // Number of boosted nodes to choose
     std::size_t     k;
+    // The maximum number of PRR-sketch samples
+    std::size_t     sampleLimit = halfMax<std::size_t>;
+    // How many times to test the solution by forward simulation
+    std::size_t     testTimes = 10000;
     // Algorithm approximation ratio = delta - epsilon
     // delta = 1 - 1/e (about 0.632) by default
-    // IMM algorithm returns an solution of approximation ratio (delta - epsilon)
+    // IMM algorithm returns a solution of approximation ratio (delta - epsilon)
     //  WITH at least 1 - (1/n)^ell probability
     double          delta = 1.0 - 1.0 / ns::e;
     // Controls the probability of an (delta - epsilon)-approximate solution
@@ -102,12 +106,15 @@ struct AlgorithmArguments {
     }
 
     [[nodiscard]] std::string dump() const {
-        constexpr auto width = 10;
-        constexpr const char* spec = "{1:>{0}}: {2}\n";
-
-        auto res = std::string("Arguments:\n");
-        res += format(spec, width, "graphPath", graphPath);
-        res += format(spec, width, "seedSetPath", seedSetPath);
+        auto doFormat = [this](std::initializer_list<std::pair<std::string, std::string>> list) {
+            auto maxLen = rs::max(list | vs::keys | vs::transform(&std::string::length));
+            auto fmt = format("{{0:>{0}}}: {{1}}\n", maxLen);
+            auto res = std::string{};
+            for (const auto& [name, value]: list) {
+                res += format(fmt, name, value);
+            }
+            return res;
+        };
 
         auto priorityStr = std::string();
         for (int i = 3; i >= 0; i--) {
@@ -116,21 +123,26 @@ struct AlgorithmArguments {
             }
             priorityStr += stateOfPriority(i);
         }
-        res += format(spec, width, "priority", priorityStr);
 
-        res += format(spec, width, "lambda", lambda);
-        res += format(spec, width, "epsilon", epsilon);
-        res += format(spec, width, "ell", ell);
-        res += format(spec, width, "delta", delta);
-
-        res += format(spec, width, "n", n);
-        res += format(spec, width, "k", k);
-
-        res += "Derived arguments:\n";
-        res += format(spec, width, "alpha", alpha);
-        res += format(spec, width, "beta", beta);
-        res += format(spec, width, "theta0", theta0);
-
+        auto res = std::string("Arguments:\n") + doFormat({
+            {"graphPath", graphPath},
+            {"seedSetPath", seedSetPath},
+            {"priority", priorityStr},
+            {"lambda", toString(lambda)},
+            {"epsilon", toString(epsilon)},
+            {"ell", toString(ell)},
+            {"delta", toString(delta)},
+            {"n", toString(n)},
+            {"k", toString(k)},
+            {"sampleLimit", toString(sampleLimit)},
+            {"testTimes", toString(testTimes)}
+        }) + "Derived arguments:\n" + doFormat({
+            {"alpha", toString(alpha)},
+            {"beta", toString(beta)},
+            {"theta0", toString(theta0)}
+        });
+        // Removes one trailing '\n'
+        res.pop_back();
         return res;
     }
 };

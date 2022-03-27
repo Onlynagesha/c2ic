@@ -99,7 +99,7 @@ private:
     // for [i, oldCenterState] in changeRecords (in order),
     //  The i-th PRR-sketch has centerState = oldCenterState before change
     // Since count of changes may be much smaller than the number of PRR-sketches stored,
-    //  a change record is more efficient than a full copy of all the states of PRR-sketches
+    //  a change record is possibly more efficient than a full copy of all the states of PRR-sketches
     struct StateChangeRecord {
         std::size_t index;
         NodeState   oldCenterState;

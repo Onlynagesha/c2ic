@@ -24,6 +24,16 @@ bool parseArgsFromTokens(
             .scan<'i', int>()
             .default_value<int>(10);
 
+    parser.add_argument("-sample-limit")
+            .help("Maximum number of PRR-sketch samples")
+            .scan<'u', std::size_t>()
+            .default_value<std::size_t>(halfMax<std::size_t> + 0u);
+
+    parser.add_argument("-test-times")
+    .help("How many times to check the solution by forward simulation")
+            .scan<'u', std::size_t>()
+            .default_value<std::size_t>(10000);
+
     parser.add_argument("-epsilon")
             .help("Epsilon")
             .scan<'g', double>()
@@ -51,6 +61,8 @@ bool parseArgsFromTokens(
         args.seedSetPath = parser.get("-seedset");
 
         args.k = parser.get<int>("-k");
+        args.sampleLimit = parser.get<std::size_t>("-sample-limit");
+        args.testTimes = parser.get<std::size_t>("-test-times");
         args.epsilon = parser.get<double>("-epsilon");
         args.lambda = parser.get<double>("-lambda");
         args.ell = parser.get<double>("-ell");

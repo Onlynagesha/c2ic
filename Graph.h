@@ -152,7 +152,7 @@ namespace graph {
      * .fastGet(n) and .fastGet(node): returns the mapped index,
      *  assuming the valid index is ensured to exist,
      *  for the sake of higher performance by preventing redundant checks
-     * .fastSet(n, i) and .fastSet(node, i): sets the mapped index of node as i
+     * .fastSet(n, i) and .fastSet(node, i): sets the mapped index of node as i,
      *  assuming space has been reserved well
      * .reserve(args) performs memory pre-allocation, WITH args: std::map<std::string, std::size_t>
      * .clear() clears the index map to initial state
@@ -160,24 +160,39 @@ namespace graph {
      *  which typically implies that no memory is deallocated
      */
 
-    // Index identity map WITH minimal operation.
-    // No check is performed. All operations as fast as possible.
-    // It's your own duty to ensure all the nodes added are not duplicated in indices.
-    // Common use case is that all the query methods (accessing nodes or links, or querying graph size, etc.)
-    //  of the graph class are used only after the whole graph is finished reading.
-    struct MinimalIndexIdentity {
-        // Simply identity map, x -> x
-        [[nodiscard]] std::size_t get(const NodeOrUnsignedIndex auto& node) const {
+    /*
+     * Identity map. Simply returns index(node) itself for each .get(node) call.
+     * It's required that into the graph the nodes are added in the order of index = 0, 1, 2...
+     */
+    class IdentityIndexMap {
+        // The next mapped index, also the current size of Graph |V|
+        std::size_t nextIndex{};
+
+    public:
+        // Resets index count.
+        void clear() {
+            nextIndex = 0;
+        }
+
+        // Resets index count.
+        void reserveClear() {
+            nextIndex = 0;
+        }
+
+        // Gets the index as its identity
+        std::size_t get(const NodeOrUnsignedIndex auto& node) const {
             return index(node);
         }
 
-        // No check is performed
-        [[nodiscard]] bool check(const NodeOrUnsignedIndex auto& node) const {
-            return true;
+        // Checks whether the index is in 0, 1 ... |V|-1
+        std::size_t check(const NodeOrUnsignedIndex auto& node) const {
+            return index(node) < nextIndex;
         }
 
-        void set(const NodeOrUnsignedIndex auto& node, std::size_t idx) {
-            // no-op
+        // Simply adds index count by 1.
+        void set(const NodeOrUnsignedIndex auto& node, std::size_t mappedIndex) {
+            assert(mappedIndex == nextIndex);
+            nextIndex += 1;
         }
     };
 
@@ -201,7 +216,7 @@ namespace graph {
             if (it == args.end()) {
                 std::cerr << "WARNING on SemiSparseIndexMap::reserve: argument 'maxIndex' is not provided!"
                           << std::endl;
-                assert(0);
+                assert(!"argument 'maxIndex' is not provided");
             }
             // Fills all un-accessed places to null
             _map.resize(it->second + 1, null);

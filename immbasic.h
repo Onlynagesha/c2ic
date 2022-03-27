@@ -76,6 +76,16 @@ inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
 }
 
 /*
+ * Compares two node states by priority
+ * compare(A, B)  > 0 means A has higher priority than B
+ * compare(A, B) == 0:      A and B are the same
+ * compare(A, B)  < 0:      A has lower priority than B
+ */
+inline int compare(NodeState A, NodeState B) {
+    return nodeStatePriority[static_cast<int>(A)] - nodeStatePriority[static_cast<int>(B)];
+}
+
+/*
  * Checks equality of two node states
  * A more efficient overload since priority[] is not cared about.
  */
@@ -163,7 +173,7 @@ struct NodePriorityProperty {
 
         auto res = NodePriorityProperty{.monotonic = true, .submodular = false};
         // Non-monotonic cases
-        if (   (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater
+        if (      (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater
                || (Ca <=> CrMinus) == greater     && (CrMinus <=> CaPlus) == greater
                || (CrMinus <=> CaPlus) == greater && (CaPlus <=> Cr) == greater
                || (CrMinus <=> Ca) == greater     && (Ca <=> Cr) == greater) {
@@ -469,10 +479,21 @@ public:
     }
 };
 
+// Node type of the whole graph for IMM algorithms
+struct IMMNode: graph::BasicNode<std::size_t> {
+    NodeState   state;
+    int         dist;
+    bool        boosted;
+
+    IMMNode() = default;
+    explicit IMMNode(std::size_t idx): graph::BasicNode<std::size_t>(idx) {} // NOLINT(cppcoreguidelines-pro-type-member-init)
+};
+
+// Graph type for IMM algorithms
 using IMMGraph = graph::Graph<
-        graph::BasicNode<std::size_t>,
+        IMMNode,
         IMMLink,
-        graph::MinimalIndexIdentity,
+        graph::IdentityIndexMap,
         graph::tags::EnablesFastAccess::Yes
         >;
 
@@ -490,12 +511,13 @@ inline IMMGraph readGraph(std::istream& in) {
     in >> V >> E;
     graph.reserve({{"nodes", V}, {"links", E}});
 
+    for (std::size_t i = 0; i < V; i++) {
+        graph.fastAddNode(IMMNode(i));
+    }
+
     std::size_t from, to;
     double p, pBoost;
-
     for (; in >> from >> to >> p >> pBoost; ) {
-        graph.addNode(graph::BasicNode(from));
-        graph.addNode(graph::BasicNode(to));
         graph.fastAddLink(IMMLink(from, to, p, pBoost));
     }
     return graph;
@@ -531,5 +553,17 @@ inline SeedSet readSeedSet(const fs::path& path) {
     auto fin = std::ifstream(path);
     return readSeedSet(fin);
 }
+
+/*
+ * Simulates message propagation without any boosted node
+ * Returns the total gain of all the nodes, Ca counted as lambda, Cr counted as lambda - 1
+ */
+double simulate(IMMGraph& graph, const SeedSet& seeds);
+
+/*
+ * Simulates message propagation with given boosted nodes
+ * Returns the total gain of all the nodes, Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- as 0
+ */
+double simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::size_t>& boostedNodes);
 
 #endif //DAWNSEEKER_IMMBASIC_H

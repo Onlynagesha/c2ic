@@ -20,10 +20,6 @@ namespace vs = std::views;
 // Enables all the literals in namespace std
 using namespace std::literals;
 
-// Support for syntax like
-// WITH (auto timer = Timer()) { /* do sth. */ }
-#define WITH(sth) if (sth; true)
-
 #if __cpp_lib_format 
 #include <format> 
 using std::format; 

@@ -6,7 +6,9 @@
 #define GRAPH_UTILS_H
 
 #include <cctype>
+#include <charconv>
 #include <random>
+#include <ranges>
 #include <string>
 
 // Factory function for std::mt19937 pseudo-random generator
@@ -62,9 +64,90 @@ struct ci_char_traits : public std::char_traits<char> {
 using CaseInsensitiveString = std::basic_string<char, ci_char_traits>;
 
 // Transforms to std::string
-inline std::string toString(const CaseInsensitiveString& str) {
+template <class Traits, class Alloc>
+inline std::string toString(const std::basic_string<char, Traits, Alloc>& str) noexcept {
     return {str.begin(), str.end()};
 }
 
+// Transforms to std::string
+inline std::string toString(const char* str) noexcept {
+    return {str};
+}
+
+// Transforms to std::string
+inline std::string toString(char c) noexcept {
+    return {1, c};
+}
+
+template <class T, class... Args>
+concept SameAsOneOf = (std::same_as<T, Args> || ...);
+
+template <class T, class... Args>
+concept ConvertibleToOneOf = (std::convertible_to<T, Args> || ...);
+
+template <class T, class... Args>
+concept SameAsOneOfWithoutCVRef =
+        (std::same_as<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
+
+template <class T, class... Args>
+concept ConvertibleToOneOfWithoutCVRef =
+        (std::convertible_to<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
+
+// Transforms integer type to std::string
+template <std::integral IntType> requires (!SameAsOneOf<IntType, bool, signed char, unsigned char>)
+inline std::string toString(IntType value, int base = 10) noexcept {
+    static char buffer[32];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), value, base);
+    return res.ec == std::errc{} ? std::string{buffer, res.ptr} : "(ERROR: std::errc::value_to_large)";
+}
+
+// Transforms floating point type to std::string
+template <std::floating_point FloatType>
+inline std::string toString(FloatType value,
+                            std::chars_format fmt = std::chars_format::general) noexcept {
+    static char buffer[64];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), value, fmt);
+    return res.ec == std::errc{} ? std::string{buffer, res.ptr} : "(ERROR: std::errc::value_to_large)";
+}
+
+// Transforms floating point type to std::string
+template <std::floating_point FloatType>
+inline std::string toString(FloatType value, std::chars_format fmt, int precision) noexcept {
+    static char buffer[64];
+    auto res = std::to_chars(buffer, buffer + sizeof(buffer), value, fmt, precision);
+    return res.ec == std::errc{} ? std::string{buffer, res.ptr} : "(ERROR: std::errc::value_to_large)";
+}
+
+// Transforms floating point type to std::string
+template <std::floating_point FloatType, std::same_as<int>... Args> requires (sizeof...(Args) <= 1)
+inline std::string toString(FloatType value, char fmt, Args... precision) noexcept {
+    using namespace std::string_literals;
+    switch (fmt) {
+        case 'a': return toString(value, std::chars_format::hex, precision...);
+        case 'e': return toString(value, std::chars_format::scientific, precision...);
+        case 'f': return toString(value, std::chars_format::fixed, precision...);
+        case 'g': return toString(value, std::chars_format::general, precision...);
+        default:  return "(ERROR: unspecified format '"s + fmt + "')";
+    }
+}
+
+template <class T> concept HasToString = requires(std::decay_t<T> x) {
+    { toString(x) } -> std::same_as<std::string>;
+};
+
+// Joins all the values with given delimiter
+template <std::ranges::range Range, HasToString Delim, HasToString Head, HasToString Tail>
+requires HasToString<std::ranges::range_value_t<Range>>
+inline std::string join(Range&& values, const Delim& delim = "", const Head& head = "", const Tail& tail = "") {
+    auto res = toString(head);
+    for (std::size_t count = 0; const auto& x: values) {
+        if (count++ != 0) {
+            res += toString(delim);
+        }
+        res += toString(x);
+    }
+    res += toString(tail);
+    return res;
+}
 
 #endif //GRAPH_UTILS_H
