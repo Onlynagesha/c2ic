@@ -5,11 +5,12 @@
 #include <numbers>
 #include <random>
 
-struct GenerateSamplesResult { // NOLINT(cppcoreguidelines-pro-type-member-init)
+struct GenerateSamplesResult {
     PRRGraphCollection  prrCollection;
-    std::size_t         prrCount;
+    std::size_t         prrCount{};
 };
 
+// Generate PRR-sketches
 auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args)
 {
     auto LB = double{ 1.0 };
@@ -18,7 +19,7 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgum
     auto prrCollection = PRRGraphCollection(args.n, seeds);
     
     // Uniformly generates a center node in [0, n) each time
-    static auto gen = std::mt19937(std::random_device()());
+    static auto gen = createMT19937Generator();
     auto distCenter = std::uniform_int_distribution<std::size_t>(0, args.n - 1);
 
     double theta = args.theta0;
@@ -33,15 +34,16 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgum
     auto makeSketch = [&]() {
         // Uniformly generates a center
         auto center = distCenter(gen);
-        // Gets a PRR-sketch with the specified center
+        // Gets a PRR-sketch WITH the specified center
         samplePRRSketch(graph, prrGraph, seeds, center);
-        // For monotone cases, boosting never improves the gain of center node
+        // For monotonic cases, boosting never improves the gain of center node
         //  if center is in Ca state (Ca has the highest gain already)
         if (prrGraph[center].state == NodeState::Ca) {
             return;
         }
         // Calculates each gain(v; prrGraph, center) for v in prrGraph
-        calculateGainFast(prrGraph);
+        // gain is implied as gain(v.centerStateTo) - gain(center.state)
+        calculateCenterStateToFast(prrGraph);
         // Adds the PRR-sketch to the collection
         prrCollection.add(prrGraph);
     };
@@ -51,17 +53,19 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgum
         theta *= 2.0;
         // minS(i) = minS(0) / 2^i
         minS /= 2.0;
-        LOG_INFO(format("Iteration {}: theta = {:.0f}, required minimal S = {:.7f}", i, theta, minS));
 
         for (; prrCount < (std::size_t)theta; ++prrCount) {
             makeSketch();
         }
-        // Check with a greedy selection
+        // Check WITH a greedy selection,
+        // S = gain of the selected boosted nodes in average of all PRR-sketches
         double S = prrCollection.select(args.k, nullptr) / (double)prrCount;
-        LOG_INFO(format("Iteration {}: S = {:.7f}, required minimal S = {:.7f}", i, S, minS));
+        LOG_INFO(format("Iteration #{}: theta = {.0f}, S = {:.7f}, required minimal S = {:.7f}",
+                        i, theta, S, minS));
+
         if (S >= minS) {
             LB = S * (double)args.n / (1 + ns::sqrt2 * args.epsilon);
-            LOG_INFO(format("LB = {:.0f}", LB));
+            LOG_INFO(format("Iteration #{}: LB = {:.0f}", i, LB));
             break; 
         }
     }
@@ -88,7 +92,7 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, AlgorithmArguments args)
 
     auto res = IMMResult();
 
-    with(auto timer = Timer()) {
+    WITH(auto timer = Timer()) {
         auto [prrCollection, prrCount] = generateSamples(graph, seeds, args);
         LOG_INFO(format("Finished generating PRR-sketches. Time used = {:.3f} sec.",
             timer.elapsed().count()));

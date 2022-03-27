@@ -1,6 +1,7 @@
 #ifndef DAWNSEEKER_GLOBAL_H
 #define DAWNSEEKER_GLOBAL_H
 
+#include "utils.h"
 #include <chrono>
 #include <filesystem>
 #include <limits>
@@ -20,8 +21,8 @@ namespace vs = std::views;
 using namespace std::literals;
 
 // Support for syntax like
-// with (auto timer = Timer()) { /* do sth. */ }
-#define with(sth) if (sth; true)
+// WITH (auto timer = Timer()) { /* do sth. */ }
+#define WITH(sth) if (sth; true)
 
 #if __cpp_lib_format 
 #include <format> 
@@ -36,16 +37,13 @@ using fmt::format;
 #define FORMAT(...) fmt::format(__VA_ARGS__)
 #else 
 #error "Either std::format in C++20 or fmt::format in libfmt should be supported!"
-#endif 
+#endif
 
+// +inf
 template <class I> requires std::integral<I> || std::floating_point<I>
 constexpr I halfMax = std::numeric_limits<I>::max() / 2;
 
+// -inf
 template <class I> requires std::integral<I> || std::floating_point<I>
 constexpr I halfMin = std::numeric_limits<I>::lowest() / 2;
-
-inline auto createMT19937Generator(unsigned initialSeed = 0) noexcept {
-    return std::mt19937(initialSeed != 0 ? initialSeed : std::random_device()());
-}
-
 #endif //DAWNSEEKER_GLOBAL_H

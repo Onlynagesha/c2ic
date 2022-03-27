@@ -55,34 +55,45 @@ bool parseArgsFromTokens(
         args.lambda = parser.get<double>("-lambda");
         args.ell = parser.get<double>("-ell");
 
+        if (args.epsilon <= 0.0 || args.epsilon >= args.delta) {
+            LOG_ERROR("Invalid argument: epsilon must be in (0, delta)!");
+            throw std::invalid_argument("epsilon must be in (0, delta)!");
+        }
+        if (args.lambda < 0.0 || args.lambda > 1.0) {
+            LOG_ERROR("Invalid argument: lambda must be in [0, 1]!");
+            throw std::invalid_argument("lambda must be in [0, 1]!");
+        }
+        if (args.ell <= 0.0) {
+            LOG_ERROR("Invalid argument: ell must be in (0, +inf)!");
+            throw std::invalid_argument("ell must be in (0, +inf)!");
+        }
+
         auto priorityStrs = parser.get<std::vector<std::string>>("-priority");
         if (priorityStrs.size() != 4) {
             throw std::invalid_argument("Exactly 4 arguments for -priority required!");
         }
 
+        static auto matches = {
+                std::tuple{"Ca+", &AlgorithmArguments::caPlus,  8},
+                std::tuple{"Ca",  &AlgorithmArguments::ca,      4},
+                std::tuple{"Cr",  &AlgorithmArguments::cr,      2},
+                std::tuple{"Cr-", &AlgorithmArguments::crMinus, 1}
+        };
+
         int readFlag = 0;
         for (int i = 0; i < 4; i++) {
-            const auto& str = priorityStrs[i];
-            if (str == "Ca+") {
-                args.caPlus = 3 - i;
-                readFlag |= 8;
+            bool matched = false;
+            for (const auto& [token2b, which, mask]: matches) {
+                if (priorityStrs[i] == token2b) {
+                    matched = true;
+                    args.*which = 3 - i;
+                    readFlag |= mask;
+                }
             }
-            else if (str == "Ca") {
-                args.ca = 3 - i;
-                readFlag |= 4;
-            }
-            else if (str == "Cr") {
-                args.cr = 3 - i;
-                readFlag |= 2;
-            }
-            else if (str == "Cr-") {
-                args.crMinus = 3 - i;
-                readFlag |= 1;
-            }
-            else {
+            if (!matched) {
                 throw std::invalid_argument(
                         format("Unexpected priority token '{}': "
-                               "must be one of 'Ca+', 'Ca', 'Cr' and 'Cr-'!", str)
+                               "must be one of 'Ca+', 'Ca', 'Cr' and 'Cr-'!", priorityStrs[i])
                 );
             }
         }

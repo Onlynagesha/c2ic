@@ -31,15 +31,15 @@ auto checkGain(IMMGraph& graph, const SeedSet& seeds, unsigned testId) {
 
     auto prrGraphSlow = prrGraphFast;
 
-    calculateGainFast(prrGraphFast);
-    calculateGainSlow(prrGraphSlow);
+    calculateCenterStateToFast(prrGraphFast);
+    calculateCenterStateToSlow(prrGraphSlow);
 
-    LOG_DEBUG("checkGain", "Result of PRR-Sketch with FAST gain computation:");
+    LOG_DEBUG("checkGain", "Result of PRR-Sketch WITH FAST gain computation:");
     for (const auto& node : prrGraphFast.nodes()) {
         LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(),
                                       gain(node.centerStateTo) - gain(prrGraphFast.centerState)));
     }
-    LOG_DEBUG("checkGain", "Result of PRR-Sketch with SLOW gain computation:");
+    LOG_DEBUG("checkGain", "Result of PRR-Sketch WITH SLOW gain computation:");
     for (const auto& node : prrGraphSlow.nodes()) {
         LOG_DEBUG("checkGain", format("  index = {}, gain = {:.1f}", node.index(),
                                       gain(node.centerStateTo) - gain(prrGraphSlow.centerState)));
@@ -93,7 +93,7 @@ void testPRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t count) {
     for (std::size_t i = 1; i <= count; i++) {
         auto v = (std::size_t)gen() % graph.nNodes();
         samplePRRSketch(graph, prrGraph, seeds, v);
-        calculateGainFast(prrGraph);
+        calculateCenterStateToFast(prrGraph);
 
         for (const auto& node: prrGraph.nodes()) {
             totalGain += gain(node.centerStateTo) - gain(prrGraph.centerState);

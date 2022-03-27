@@ -101,7 +101,7 @@ namespace logger {
     class Logger {
     public:
 #ifdef __linux__
-    // Default logger for Linux with GCC:
+    // Default logger for Linux WITH GCC:
     // Source location is displayed as file name
     //  since in Linux the file name is shorter (parent directories is hidden)
     static inline LogHeadFormatter defaultFormatter = LogHeadFormatter{
@@ -110,7 +110,7 @@ namespace logger {
         "%file:%line"
     };
 #else
-    // Default logger for Windows with MSVC:
+    // Default logger for Windows WITH MSVC:
     // Source location is displayed as function name
     //  since in Windows the function name is shorter
     //  (return type, arguments, etc. are hidden)
@@ -217,7 +217,7 @@ namespace logger {
 
     public:
         // Adds a logger via a shared_ptr
-        // Fails if another logger with the same _id is already added
+        // Fails if another logger WITH the same _id is already added
         // Returns: whether the logger is added successfully
         static bool add(std::shared_ptr<Logger> logger) {
             auto it = findLogger(logger->id());
@@ -228,7 +228,7 @@ namespace logger {
             return true;
         }
 
-        // Removes the logger with specified _id
+        // Removes the logger WITH specified _id
         // Fails if the logger does not exist
         // Returns: whether the logger is removed successfully
         static bool remove(const std::string& id) {
@@ -257,7 +257,7 @@ namespace logger {
             }
             else {
                 std::cerr << format(
-                        "WARNING on Logger::log: Logger with _id '{}' is not found.", id
+                        "WARNING on Logger::log: Logger WITH _id '{}' is not found.", id
                         ) << std::endl;
             }
         }

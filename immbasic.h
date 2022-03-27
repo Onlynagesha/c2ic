@@ -4,6 +4,7 @@
 #include "global.h"
 #include "Graph.h"
 #include <algorithm>
+#include <array>
 #include <cassert>
 #include <compare>
 #include <filesystem>
@@ -11,64 +12,83 @@
 #include <random>
 #include <vector>
 
+struct ReturnsValueTag {};
+inline auto returnsValue = ReturnsValueTag{};
+
 enum class NodeState {
     None = 0,       // Neither positive nor negative
-    CaPlus = 1,     // Ca+: Boosted node with positive message
-                    //      which propagates with higher probability
-    Ca = 2,         // Ca:  Non-boosted node with positive message
-    Cr = 3,         // Cr:  Non-boosted node with negative message
-    CrMinus = 4     // Cr-: Boosted node with negative message
+    CaPlus = 1,     // Ca+: Boosted node WITH positive message
+                    //      which propagates WITH higher probability
+    Ca = 2,         // Ca:  Non-boosted node WITH positive message
+    Cr = 3,         // Cr:  Non-boosted node WITH negative message
+    CrMinus = 4     // Cr-: Boosted node WITH negative message
                     //      which propagates 'neutralized' negative message instead
 };
 
 enum class LinkState {
     NotSampleYet = 0,   // Not sampled initially
     Blocked = 1,        // Blocked link: unable to propagate any message
-    Active = 2,         // Active link:  message propagates with probability p
+    Active = 2,         // Active link:  message propagates WITH probability p
     Boosted = 3         // Boosted link: for a boosted link u -> v, 
                         //  if u receives boosted positive message (Ca+), 
-                        //  it propagates with probability pBoost >= p.
-                        //  Others (Ca, Cr, Cr-) propagate with probability p as usual 
+                        //  it propagates WITH probability pBoost >= p.
+                        //  Others (Ca, Cr, Cr-) propagate WITH probability p as usual
 };
 
 /*
-* Let f(S) = the total gain with S = the set of boosted nodes
+* Let f(S) = the total gain WITH S = the set of boosted nodes
 *            as the expected number of extra nodes that get positive message due to S
-*            compared to that with no boosted nodes
-*     g(S) = the total gain with S = the set of boosted nodes
+*            compared to that WITH no boosted nodes
+*     g(S) = the total gain WITH S = the set of boosted nodes
 *            as the expected number of nodes prevented from negative message due to S
-*            compared to that with no boosted nodes
+*            compared to that WITH no boosted nodes
 * Then the objective function h(S) = lambda * f(S) + (1-lambda) * g(S)
-* Gain of each node state (with parameter lambda):
+* Gain of each node state (WITH parameter lambda):
 *   None:   0
 *   Ca+:    lambda
 *   Ca:     lambda
 *   Cr:     -(1-lambda)
 *   Cr-:    0
 */
-inline double   nodeStateGain[5];
+inline std::array<double, 5> nodeStateGain;
 
 /*
 * Priority of the node states, higher is better
-* e.g. for the case Ca+ > Cr- > Cr > Ca, 
+* e.g. for the case Ca+ > Cr- > Cr > Ca,
 *       priority[Ca+]  = 3,
 *       priority[Cr-]  = 2,
 *       priority[Cr]   = 1,
 *       priority[Ca]   = 0,
 *       priority[None] = -1 (None is always considered the lowest)
 */
-inline int      nodeStatePriority[5];
+inline std::array<int, 5> nodeStatePriority;
 
 /*
 * Compares two node states by priority
 * A > B means A has higher priority than B
+* WARNING ON (POSSIBLE) COMPILER BUG:
+*  Implicit comparison operators (<, <=, etc.) may fail to work correctly
+*   in GCC 11.2 and/or other compilers
+*  Use explicit operator <=> instead. e.g. (A <=> B) == std::strong_ordering::greater
 */
-std::strong_ordering operator <=> (NodeState A, NodeState B);
+inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
+    return nodeStatePriority[static_cast<int>(A)] <=> nodeStatePriority[static_cast<int>(B)];
+}
+
+/*
+ * Checks equality of two node states
+ * A more efficient overload since priority[] is not cared about.
+ */
+inline bool operator == (NodeState A, NodeState B) {
+    return static_cast<int>(A) == static_cast<int>(B);
+}
 
 /*
 * Compares two link states as order Boosted > Active > Blocked
 */
-std::strong_ordering operator <=> (LinkState A, LinkState B);
+inline std::strong_ordering operator <=> (LinkState A, LinkState B) {
+    return static_cast<int>(A) <=> static_cast<int>(B);
+}
 
 /*
 * Gets the gain of certain state
@@ -92,17 +112,17 @@ inline bool isNegative(NodeState state) {
 }
 
 /*
-* Sets the gain of each state with given parameter lambda
+* Sets the gain of each state WITH given parameter lambda
 */
 inline void setNodeStateGain(double lambda) {
     // Default state: 0.0
     nodeStateGain[static_cast<int>(NodeState::None)] = 0.0;
-    // Gain with positive state: lambda
+    // Gain WITH positive state: lambda
     nodeStateGain[static_cast<int>(NodeState::CaPlus)] = lambda;
     nodeStateGain[static_cast<int>(NodeState::Ca)] = lambda;
-    // Gain with negative state: - (1.0 - lambda)
+    // Gain WITH negative state: - (1.0 - lambda)
     nodeStateGain[static_cast<int>(NodeState::Cr)] = lambda - 1.0;
-    // Gain with neutralized negative state: 0
+    // Gain WITH neutralized negative state: 0
     nodeStateGain[static_cast<int>(NodeState::CrMinus)] = 0.0;
 }
 
@@ -114,16 +134,104 @@ inline void setNodeStateGain(double lambda) {
 *       cr      = 1 (2nd lowest)
 *       crMinus = 2 (2nd highest)
 */
-inline void setNodeStatePriority(int caPlus, int ca, int cr, int crMinus) {
+inline std::array<int, 5> setNodeStatePriority(ReturnsValueTag, int caPlus, int ca, int cr, int crMinus) {
     // Checks the arguments to ensure they cover {0, 1, 2, 3}
     assert(((1 << caPlus) | (1 << ca) | (1 << cr) | (1 << crMinus)) == 0b1111);
 
-    nodeStatePriority[static_cast<int>(NodeState::None)] = -1;
-    nodeStatePriority[static_cast<int>(NodeState::CaPlus)] = caPlus;
-    nodeStatePriority[static_cast<int>(NodeState::Ca)] = ca;
-    nodeStatePriority[static_cast<int>(NodeState::Cr)] = cr;
-    nodeStatePriority[static_cast<int>(NodeState::CrMinus)] = crMinus;
+    auto dest = std::array<int, 5>{};
+    dest[static_cast<int>(NodeState::None)] = -1;
+    dest[static_cast<int>(NodeState::CaPlus)] = caPlus;
+    dest[static_cast<int>(NodeState::Ca)] = ca;
+    dest[static_cast<int>(NodeState::Cr)] = cr;
+    dest[static_cast<int>(NodeState::CrMinus)] = crMinus;
+
+    return dest;
 }
+
+inline void setNodeStatePriority(int caPlus, int ca, int cr, int crMinus) {
+    nodeStatePriority = setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus);
+}
+
+// Properties of the node priority
+struct NodePriorityProperty {
+    bool monotonic;     // Is monotonicity satisfied
+    bool submodular;    // Is sub-modularity satisfied
+
+    static NodePriorityProperty current() {
+        using enum NodeState;
+        static auto greater = std::strong_ordering::greater;
+
+        auto res = NodePriorityProperty{.monotonic = true, .submodular = false};
+        // Non-monotonic cases
+        if (   (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater
+               || (Ca <=> CrMinus) == greater     && (CrMinus <=> CaPlus) == greater
+               || (CrMinus <=> CaPlus) == greater && (CaPlus <=> Cr) == greater
+               || (CrMinus <=> Ca) == greater     && (Ca <=> Cr) == greater) {
+            res.monotonic = false;
+        }
+        // Sub-modular cases
+        static auto submodularCases = {
+                setNodeStatePriority(returnsValue, 3, 2, 0, 1), // Ca+ > Ca  > Cr- > Cr
+                setNodeStatePriority(returnsValue, 3, 0, 1, 2), // Ca+ > Cr- > Cr  > Ca
+                setNodeStatePriority(returnsValue, 1, 0, 2, 3)  // Cr- > Cr  > Ca+ > Ca
+        };
+        for (const auto& c: submodularCases) {
+            if (nodeStatePriority == c) {
+                res.submodular = true;
+            }
+        }
+
+        return res;
+    }
+
+    // Checks WITH given token sequence (e.g. "M - nS"). Tokens are case-insensitive
+    // "M":  expected to be monotonic
+    // "nM":                non-monotonic
+    // "S":  expected to be submodular
+    // "nS":                non-submodular
+    bool satisfies(const CaseInsensitiveString& str) {
+        // Tokens are split by either of the following delimiters
+        static const char* delims = " ,-;";
+        // {token, which value to check, expected value}
+        static auto checkItems = {
+                std::tuple{"M",  &NodePriorityProperty::monotonic,  true},
+                std::tuple{"mM", &NodePriorityProperty::monotonic,  false},
+                std::tuple{"S",  &NodePriorityProperty::submodular, true},
+                std::tuple{"nS", &NodePriorityProperty::submodular, false}
+        };
+
+        for (std::size_t next, pos = str.find_first_not_of(delims);
+             pos != str.length() && pos != std::string::npos;
+             pos = next) {
+            next = str.find_first_of(delims, pos);
+            auto token = str.substr(pos, (next == std::string::npos ? str.length() : next) - pos);
+
+            // If current token matches any item
+            bool matched = false;
+            for (auto [token2b, which, expected]: checkItems) {
+                if (token == token2b) {
+                    matched = true;
+                }
+                if (this->*which != expected) {
+                    return false;
+                }
+            }
+            // If no match, then the token input is invalid
+            if (!matched) {
+                std::cerr << "WARNING on NodePriorityProperty::satisfies: token '" << toString(token)
+                          << "' is not recognized. "
+                             "Use one of 'M', 'nM', 'S', 'nS' instead." << std::endl;
+            }
+        }
+        // All satisfied
+        return true;
+    }
+
+    // Dumps as string
+    [[nodiscard]] std::string dump() const {
+        return (monotonic ? "M" : "nM") + " - "s + (submodular ? "S" : "nS");
+    }
+};
 
 /*
 * Converts a node state to string
@@ -203,7 +311,7 @@ public:
         // Sort respectively for binary search (if required)
         rs::sort(this->_Sa);
         rs::sort(this->_Sr);
-        // Initialize each bitset with the max index respectively
+        // Initialize each bitset WITH the max index respectively
         _bitsetA.resize(_Sa.back() + 1, false);
         _bitsetR.resize(_Sr.back() + 1, false);
 
@@ -321,7 +429,7 @@ public:
     void refreshState() {
         // A = 2 ^ (-B) where B = number of bits of each generated unsigned integer
         constexpr int B = (int) decltype(gen)::word_size;
-        constexpr static double A = std::ldexp(1.0, -B);
+        constexpr static double A = quickPow(0.5, B);
         // Fast generation of pseudo-random value in [0, 1)
         double r = (double)gen() * A;
         // [0, p): Active
@@ -342,7 +450,7 @@ public:
 
     /*
     * Sets the seed of the internal pseudo-random generator
-    * On testing scenario, it ensures the same generation results with the same seed
+    * On testing scenario, it ensures the same generation results WITH the same seed
     * (The default seed is something related to system clock)
     */
     static void setSeed(unsigned seed) {
@@ -365,7 +473,7 @@ using IMMGraph = graph::Graph<
         graph::BasicNode<std::size_t>,
         IMMLink,
         graph::MinimalIndexIdentity,
-        graph::ReserveStrategy::Nodes | graph::ReserveStrategy::Links
+        graph::tags::EnablesFastAccess::Yes
         >;
 
 /*
@@ -373,7 +481,7 @@ using IMMGraph = graph::Graph<
 * File format:
 * The first line contains two integers V, E, denoting number of nodes and links
 * Then E lines, each line contains 4 values u, v, p, pBoost
-*   indicating a directed link u -> v with probabilities p and pBoost
+*   indicating a directed link u -> v WITH probabilities p and pBoost
 */
 inline IMMGraph readGraph(std::istream& in) {
     auto graph = IMMGraph(graph::tags::reservesLater);
@@ -386,9 +494,9 @@ inline IMMGraph readGraph(std::istream& in) {
     double p, pBoost;
 
     for (; in >> from >> to >> p >> pBoost; ) {
-        graph.emplaceNode(from);
-        graph.emplaceNode(to);
-        graph.emplaceLink(from, to, p, pBoost);
+        graph.addNode(graph::BasicNode(from));
+        graph.addNode(graph::BasicNode(to));
+        graph.fastAddLink(IMMLink(from, to, p, pBoost));
     }
     return graph;
 }

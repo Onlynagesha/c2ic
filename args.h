@@ -8,6 +8,7 @@
 #include "argparse/argparse.hpp"
 #include "global.h"
 #include "immbasic.h"
+#include <optional>
 
 struct AlgorithmArguments {
     // Path of the graph file
@@ -33,9 +34,9 @@ struct AlgorithmArguments {
     // Algorithm approximation ratio = delta - epsilon
     // delta = 1 - 1/e (about 0.632) by default
     // IMM algorithm returns an solution of approximation ratio (delta - epsilon)
-    //  with at least 1 - (1/n)^ell probability
+    //  WITH at least 1 - (1/n)^ell probability
     double          delta = 1.0 - 1.0 / ns::e;
-    // Controls the probability of an (delta - epsilon)-approximative solution
+    // Controls the probability of an (delta - epsilon)-approximate solution
     // The higher ell, the lower probability for a low-quality result,
     //  but the higher time & space consumption
     // ell = 1.0 by default
@@ -135,6 +136,14 @@ struct AlgorithmArguments {
 };
 
 // Gets the arguments from the command line
+// Returns: successful or not
 bool parseArgs(AlgorithmArguments& args, int argc, char** argv);
+
+// Gets the arguments from the command line
+// Returns: args if successful, std::nullopt of not
+inline std::optional<AlgorithmArguments> parseArgs(int argc, char** argv) {
+    auto args = AlgorithmArguments{};
+    return parseArgs(args, argc, argv) ? std::make_optional(args) : std::nullopt;
+}
 
 #endif //GRAPH_ARGS_H

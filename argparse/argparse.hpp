@@ -782,7 +782,7 @@ private:
    */
   template <typename T> auto present() const -> std::optional<T> {
     if (mDefaultValue.has_value())
-      throw std::logic_error("Argument with default value always presents");
+      throw std::logic_error("Argument WITH default value always presents");
 
     if (mValues.empty())
       return std::nullopt;
@@ -878,7 +878,7 @@ public:
   }
 
   // Parameter packing
-  // Call add_argument with variadic number of string arguments
+  // Call add_argument WITH variadic number of string arguments
   template <typename... Targs> Argument &add_argument(Targs... Fargs) {
     using array_of_sv = std::string_view[sizeof...(Targs)];
     auto tArgument = mOptionalArguments.emplace(cend(mOptionalArguments),
@@ -941,7 +941,7 @@ public:
     parse_args(arguments);
   }
 
-  /* Getter for options with default values.
+  /* Getter for options WITH default values.
    * @throws std::logic_error if parse_args() has not been previously called
    * @throws std::logic_error if there is no such option
    * @throws std::logic_error if the option has no value
@@ -966,14 +966,14 @@ public:
   }
 
   /* Getter that returns true for user-supplied options. Returns false if not
-   * user-supplied, even with a default value.
+   * user-supplied, even WITH a default value.
    */
   auto is_used(std::string_view aArgumentName) const {
     return (*this)[aArgumentName].mIsUsed;
   }
 
   /* Indexing operator. Return a reference to an Argument object
-   * Used in conjuction with Argument.operator== e.g., parser["foo"] == true
+   * Used in conjuction WITH Argument.operator== e.g., parser["foo"] == true
    * @throws std::logic_error in case of an invalid argument name
    */
   Argument &operator[](std::string_view aArgumentName) const {
@@ -1045,7 +1045,7 @@ public:
   }
 
   // Printing the one and only help message
-  // I've stuck with a simple message format, nothing fancy.
+  // I've stuck WITH a simple message format, nothing fancy.
   [[deprecated("Use cout << program; instead.  See also help().")]] std::string
   print_help() const {
     auto out = help();
