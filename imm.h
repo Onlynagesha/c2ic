@@ -95,47 +95,20 @@ struct PRRGraphCollection {
     }
 
 private:
-    // We use a change record list to make changes to and restore the PRR-sketch list
-    // for [i, oldCenterState] in changeRecords (in order),
-    //  The i-th PRR-sketch has centerState = oldCenterState before change
-    // Since count of changes may be much smaller than the number of PRR-sketches stored,
-    //  a change record is possibly more efficient than a full copy of all the states of PRR-sketches
-    struct StateChangeRecord {
-        std::size_t index;
-        NodeState   oldCenterState;
-    };
-    std::vector<StateChangeRecord>  changeRecords;
-
-    // Changes the centerState of the specified PRR-sketch and adds the change record
-    void changeCenterState (std::size_t prrIndex, NodeState to) {
-        changeRecords.push_back(StateChangeRecord{
-                .index = prrIndex,
-                .oldCenterState = this->prrGraph[prrIndex].centerState
-        });
-        prrGraph[prrIndex].centerState = to;
-    };
-
-    // Restores the centerState of all PRR-sketches
-    // and clears the change record list after restoration
-    void restoreCenterState () {
-        // Perform restoration in reversed order
-        for (const auto& rec: changeRecords | vs::reverse) {
-            prrGraph[rec.index].centerState = rec.oldCenterState;
-        }
-        LOG_DEBUG(format("Number of PRR-sketches stored = {} vs. Size of PRR-sketch change record list: {}",
-                        prrGraph.size(), changeRecords.size()));
-        // Clears after all changes are restored
-        changeRecords.clear();
-    };
 
     // Helper non-const function of greedy selection
     template <class OutIter>
     requires std::output_iterator<OutIter, std::size_t>
              || std::same_as<OutIter, std::nullptr_t>
-    double _select(std::size_t k, OutIter iter) {
+    double _select(std::size_t k, OutIter iter) const {
         double res = 0.0;
         // Makes a copy of the totalGain[] to update values during selection
         auto totalGainCopy = totalGain;
+        // Makes a copy of all the center states
+        // centerStateCopy[i] = center state of the i-th PRR-sketch
+        //  after modification during greedy selection
+        auto centerStateCopy = std::vector<NodeState>(prrGraph.size());
+        rs::transform(prrGraph, centerStateCopy.begin(), &SimplifiedPRRGraph::centerState);
         // The seeds shall not be selected
         for (auto a: seeds.Sa()) {
             totalGainCopy[a] = halfMin<double>;
@@ -145,7 +118,7 @@ private:
         }
 
         for (std::size_t i = 0; i < k; i++) {
-            // v = The node chosen in this turn, WITH the highest total gain
+            // v = The node chosen in this turn, with the highest total gain
             std::size_t v = rs::max_element(totalGainCopy) - totalGainCopy.begin();
             // Output is only enabled when iter != nullptr
             if constexpr (!std::is_same_v<OutIter, std::nullptr_t>) {
@@ -160,25 +133,24 @@ private:
             // Impose influence to all the PRR-sketches by node v
             for (auto [prrId, centerStateTo] : contrib[v]) {
                 // Attempts to update the center state of current PRR-sketch...
-                auto cmp = centerStateTo <=> prrGraph[prrId].centerState;
+                auto cmp = centerStateTo <=> centerStateCopy[prrId];
                 // ...only if the update makes higher priority.
                 // (otherwise, the PRR-sketch may have been updated by other selected boosted nodes)
                 if (cmp != std::strong_ordering::greater) {
                     continue;
                 }
-                double curGain = gain(centerStateTo) - gain(prrGraph[prrId].centerState);
+                double curGain = gain(centerStateTo) - gain(centerStateCopy[prrId]);
                 // After the center state of the prrId-th PRR-sketch changed from C0 to C1,
                 //  all other nodes that may change the same PRR-sketch will make lower gain,
                 //  from (C2 - C0) to (C2 - C1), diff = C1 - C0
-                for (auto [j, s] : prrGraph[prrId].items) {
+                for (const auto& [j, s] : prrGraph[prrId].items) {
                     totalGainCopy[j] -= curGain;
                 }
                 // Updates state of the prrId-th PRR-sketch
-                changeCenterState(prrId, centerStateTo);
+                centerStateCopy[prrId] = centerStateTo;
             }
         }
 
-        restoreCenterState();
         return res;
     }
 
@@ -196,9 +168,7 @@ public:
         requires std::output_iterator<OutIter, std::size_t>
         || std::same_as<OutIter, std::nullptr_t>
     double select(std::size_t k, OutIter iter) const {
-        // The changeRecord list may be changed, so a non-const helper is needed
-        //  though nothing is changed finally (all changes will be restored)
-        return const_cast<PRRGraphCollection*>(this)->_select(k, iter);
+        return _select(k, iter);
     }
 
 #pragma clang diagnostic push
@@ -228,10 +198,6 @@ public:
         // Total bytes of totalGain[]
         bytes += sizeof(totalGain) 
             + totalGain.capacity() * sizeof(decltype(totalGain)::value_type);
-
-        // Total bytes of changeRecord[]
-        bytes += sizeof(changeRecords)
-            + changeRecords.capacity() * sizeof(decltype(changeRecords)::value_type);
 
         return bytes; 
     }
