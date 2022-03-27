@@ -100,7 +100,6 @@ namespace logger {
 
     class Logger {
     public:
-#ifdef __linux__
     // Default logger for Linux WITH GCC:
     // Source location is displayed as file name
     //  since in Linux the file name is shorter (parent directories is hidden)
@@ -109,17 +108,6 @@ namespace logger {
         "%m-%d %T",
         "%file:%line"
     };
-#else
-    // Default logger for Windows WITH MSVC:
-    // Source location is displayed as function name
-    //  since in Windows the function name is shorter
-    //  (return type, arguments, etc. are hidden)
-    static inline LogHeadFormatter defaultFormatter = LogHeadFormatter(
-            "[%time][%location] %level: ",
-            "%m-%d %T",
-            "%func:%line"
-    );
-#endif
 
     private:
         // Identifier of the logger
@@ -169,9 +157,10 @@ namespace logger {
                 buffer, sizeof(buffer), formatter.time.c_str(), std::localtime(&timeValue)
             );
 #endif
+            auto path = fs::path(loc.file_name());
             std::osyncstream(out)
                     << format(formatterString, buffer, toString(level), _id,
-                              loc.file_name(), loc.line(), loc.function_name())
+                              path.filename().string(), loc.line(), loc.function_name())
                     << content << std::endl;
         }
 
