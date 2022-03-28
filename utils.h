@@ -173,7 +173,7 @@ concept HasStdFormatter = std::is_arithmetic_v<T>
         || TemplateInstanceOf<T, std::chrono::duration>
         || std::chrono::is_clock_v<T>;
 
-// A general formatter for types that supports toString()
+// A general formatter for types that support toString()
 template <class T> requires (HasToString<T> && !HasStdFormatter<T>)
 struct FORMAT_NAMESPACE::formatter<T>: FORMAT_NAMESPACE::formatter<std::string, char> {
     template<class FormatContext>
@@ -195,6 +195,37 @@ inline std::string join(Range&& values, const Delim& delim = "", const Head& hea
         res += toString(x);
     }
     res += toString(tail);
+    return res;
+}
+
+template <class T>
+inline std::size_t totalBytesUsed(const std::vector<T>& vec) {
+    // .capacity() is used instead of .size() to calculate actual memory allocated
+    auto res = sizeof(vec) + vec.capacity() * sizeof(T);
+    // For nested vector type like std::vector<std::vector<U>>
+    if constexpr(TemplateInstanceOf<T, std::vector>) {
+        for (const auto& inner: vec) {
+            res += totalBytesUsed(inner);
+        }
+    }
+    return res;
+}
+
+// Format:
+//  if less than 1KB, simply "n bytes"
+//  otherwise, "n bytes = x (Kibi|Mebi|Gibi)Bytes" where x has fixed 3 decimal digits
+inline std::string totalBytesUsedToString(std::size_t nBytes, const std::locale& loc = std::locale("")) {
+    auto res = format(loc, "{} nBytes", nBytes);
+    if (nBytes >= 1024) {
+        static const char* units[3] = { "KibiBytes", "MebiBytes", "GibiBytes" };
+        double value = (double)nBytes / 1024.0;
+        int unitId = 0;
+
+        for (; unitId < 2 && value >= 1024.0; ++unitId) {
+            value /= 1024.0;
+        }
+        res += format(" = {:.3f} {}", value, units[unitId]);
+    }
     return res;
 }
 

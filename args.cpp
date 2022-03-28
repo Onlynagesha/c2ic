@@ -30,14 +30,24 @@ bool parseArgsFromTokens(
             .default_value<std::size_t>(halfMax<std::size_t> + 0u);
 
     parser.add_argument("-test-times")
-    .help("How many times to check the solution by forward simulation")
+            .help("How many times to check the solution by forward simulation")
             .scan<'u', std::size_t>()
             .default_value<std::size_t>(10000);
 
-    parser.add_argument("-epsilon")
-            .help("Epsilon")
+    parser.add_argument("-epsilon", "-epsilon1", "-epsilon-pr")
+            .help("Epsilon1 in PR-IMM algorithm")
             .scan<'g', double>()
             .default_value<double>(0.1);
+
+    parser.add_argument("-epsilon2", "-epsilon-sa")
+            .help("Epsilon2 in SA-IMM algorithm")
+            .scan<'g', double>()
+            .default_value<double>(halfMax<double> + 0.0);
+
+    parser.add_argument("-gain-threshold-sa")
+            .help("Minimum average gain for each node in SA-IMM algorithm")
+            .scan<'g', double>()
+            .default_value<double>(0.0);
 
     parser.add_argument("-lambda")
             .help("Lambda")
@@ -63,13 +73,23 @@ bool parseArgsFromTokens(
         args.k = parser.get<int>("-k");
         args.sampleLimit = parser.get<std::size_t>("-sample-limit");
         args.testTimes = parser.get<std::size_t>("-test-times");
-        args.epsilon = parser.get<double>("-epsilon");
+        args.epsilon_pr = parser.get<double>("-epsilon-pr");
+        args.epsilon_sa = parser.get<double>("-epsilon-sa");
+        // epsilon2 = epsilon1 by default
+        if (args.epsilon_sa == halfMax<double>) {
+            args.epsilon_sa = args.epsilon_pr;
+        }
         args.lambda = parser.get<double>("-lambda");
         args.ell = parser.get<double>("-ell");
+        args.gainThreshold_sa = parser.get<double>("-gain-threshold-sa");
 
-        if (args.epsilon <= 0.0 || args.epsilon >= args.delta) {
-            LOG_ERROR("Invalid argument: epsilon must be in (0, delta)!");
-            throw std::invalid_argument("epsilon must be in (0, delta)!");
+        if (args.epsilon_pr <= 0.0 || args.epsilon_pr >= args.delta) {
+            LOG_ERROR("Invalid argument: epsilon_pr must be in (0, delta)!");
+            throw std::invalid_argument("epsilon_pr must be in (0, delta)!");
+        }
+        if (args.gainThreshold_sa < 0.0 || args.gainThreshold_sa >= 1.0) {
+            LOG_ERROR("Invalid argument: gainThreshold_sa must be in [0, 1)!");
+            throw std::invalid_argument("gainThreshold_sa must be in [0, 1)!");
         }
         if (args.lambda < 0.0 || args.lambda > 1.0) {
             LOG_ERROR("Invalid argument: lambda must be in [0, 1]!");

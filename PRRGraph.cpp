@@ -223,7 +223,7 @@ void calculateCenterStateToFast(PRRGraph& prrGraph)
     }
 
     bool crHigher = (NodeState::Cr <=> NodeState::CaPlus) == std::strong_ordering::greater;
-    
+
     // Initializes all the maxDistP (including center node) as inf
     for (auto& node : prrGraph.nodes()) {
         node.maxDistP = halfMax<int>;
@@ -274,9 +274,7 @@ void calculateCenterStateToFast(PRRGraph& prrGraph)
     }
 }
 
-NodeState _calculateCenterStateToSlow(
-    PRRGraph prrGraph, std::size_t maxIndex, std::size_t v)
-{
+NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, std::size_t v) {
     graph::NodeOrIndex auto& vNode = prrGraph[v];
     graph::NodeOrIndex auto& centerNode = prrGraph.centerNode();
 
@@ -289,7 +287,8 @@ NodeState _calculateCenterStateToSlow(
     }
 
     // vis[u] = whether the node u has been pushed to the queue
-    auto vis = std::vector<bool>(maxIndex + 1);
+    static auto vis = std::vector<bool>();
+    vis.assign(maxIndex + 1, false);
 
     auto Q = std::queue<PRRNode*>({&vNode});
     vis[v] = true;
@@ -307,11 +306,11 @@ NodeState _calculateCenterStateToSlow(
             }
             // State of the target node may change if:
             //  (1) cur.dist + 1 < e.to.dist, 
-            //      i.e. message arrives earlier and manages to replace the old one
+            //      i.e. message arrives earlier and replaces the old one
             //  (2) cur.dist + 1 == e.to.dist,
-            //      but some message WITH higher priority replaces the old one
+            //      but message with higher priority replaces the old one
             if (nextDist < to.dist ||
-                nextDist == to.dist && (cur.state <=> to.state) == std::strong_ordering::greater) {
+                nextDist == to.dist && compare(cur.state, to.state) > 0) {
                 // Replace the target's state to the current one
                 //  that arrives earlier due to boosting, or has higher priority
                 to.dist = nextDist; 
@@ -333,6 +332,21 @@ NodeState _calculateCenterStateToSlow(
 void calculateCenterStateToSlow(PRRGraph& prrGraph)
 {
     auto maxIndex = rs::max(prrGraph.nodes() | vs::transform(&PRRNode::index));
+    auto oldStates = std::vector<NodeState>(maxIndex + 1);
+    auto oldDists = std::vector<int>(maxIndex + 1);
+
+    for (const auto& node: prrGraph.nodes()) {
+        auto idx = index(node);
+        oldStates[idx] = node.state;
+        oldDists[idx] = node.dist;
+    }
+    auto restore = [&]() {
+        for (auto& node: prrGraph.nodes()) {
+            auto idx = index(node);
+            node.state = oldStates[idx];
+            node.dist = oldDists[idx];
+        }
+    };
 
     for (auto& node : prrGraph.nodes()) {
         // If current node can not receive any message, simply sets its centerStateTo = G.centerState
@@ -340,8 +354,8 @@ void calculateCenterStateToSlow(PRRGraph& prrGraph)
             node.centerStateTo = prrGraph.centerNode().state;
             continue; 
         }
-        auto prrCopy = prrGraph;
         // Consider each node separately
-        node.centerStateTo = _calculateCenterStateToSlow(std::move(prrCopy), maxIndex, node.index());
+        node.centerStateTo = _calculateCenterStateToSlow(prrGraph, maxIndex, node.index());
+        restore();
     }
 }

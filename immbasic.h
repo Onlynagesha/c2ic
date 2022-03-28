@@ -82,8 +82,12 @@ inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
  * compare(A, B) == 0:      A and B are the same
  * compare(A, B)  < 0:      A has lower priority than B
  */
+inline int compare(const std::array<int, 5>& priority, NodeState A, NodeState B) {
+    return priority[static_cast<int>(A)] - priority[static_cast<int>(B)];
+}
+
 inline int compare(NodeState A, NodeState B) {
-    return nodeStatePriority[static_cast<int>(A)] - nodeStatePriority[static_cast<int>(B)];
+    return compare(nodeStatePriority, A, B);
 }
 
 /*
@@ -168,6 +172,21 @@ struct NodePriorityProperty {
     bool monotonic;     // Is monotonicity satisfied
     bool submodular;    // Is sub-modularity satisfied
 
+    static NodePriorityProperty of(int caPlus, int ca, int cr, int crMinus) noexcept{
+        return of(setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus));
+    }
+
+    static NodePriorityProperty of(const std::array<int, 5>& priority) noexcept {
+        auto oldPriority = nodeStatePriority;
+        // Temporarily sets to current priority
+        nodeStatePriority = priority;
+        // Gets current
+        auto res = current();
+        // and then restores
+        nodeStatePriority = oldPriority;
+        return res;
+    }
+
     static NodePriorityProperty current() {
         using enum NodeState;
         static auto greater = std::strong_ordering::greater;
@@ -213,7 +232,7 @@ struct NodePriorityProperty {
 
         for (std::size_t next, pos = str.find_first_not_of(delims);
              pos != str.length() && pos != std::string::npos;
-             pos = next) {
+             pos = str.find_first_not_of(delims, next)) {
             next = str.find_first_of(delims, pos);
             auto token = str.substr(pos, (next == std::string::npos ? str.length() : next) - pos);
 
@@ -222,9 +241,9 @@ struct NodePriorityProperty {
             for (auto [token2b, which, expected]: checkItems) {
                 if (token == token2b) {
                     matched = true;
-                }
-                if (this->*which != expected) {
-                    return false;
+                    if (this->*which != expected) {
+                        return false;
+                    }
                 }
             }
             // If no match, then the token input is invalid
@@ -240,7 +259,11 @@ struct NodePriorityProperty {
 
     // Dumps as string
     [[nodiscard]] std::string dump() const {
-        return (monotonic ? "M" : "nM") + " - "s + (submodular ? "S" : "nS");
+        return format("{}monotonic & {}submodular ({} - {})",
+                      monotonic ? "" : "non-",
+                      submodular ? "" : "non-",
+                      monotonic ? "M" : "nM",
+                      submodular ? "S" : "nS");
     }
 };
 

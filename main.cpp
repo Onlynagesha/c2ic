@@ -19,12 +19,26 @@ int main(int argc, char** argv) {
     args.updateGainAndPriority();
     LOG_INFO(args.dump());
 
-    auto res = PR_IMM(graph, seeds, args);
-    LOG_INFO(format("Final gain = {:.3f}", res.totalGain));
-    LOG_INFO(join(res.boostedNodes, ", ", "Selected boosted nodes: {", "}"));
+    auto property = NodePriorityProperty::current();
+    if (property.satisfies("m-s")) {
+        auto res = PR_IMM(graph, seeds, args);
+        LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
 
-    auto simRes = simulate(graph, seeds, res.boostedNodes, args.testTimes);
-    LOG_INFO(format("Simulation result: {}", simRes));
+        auto simRes = simulate(graph, seeds, res.boostedNodes, args.testTimes);
+        LOG_INFO(format("Simulation result: {}", simRes));
+    }
+    else if (property.satisfies("m-ns")) {
+        auto res = SA_IMM(graph, seeds, args);
+        LOG_INFO("SA-IMM result: " + toString(res, 4, 4));
+
+        for (std::size_t i = 0; i < 3; i++) {
+            auto simRes = simulate(graph, seeds, res[i].boostedNodes, args.testTimes);
+            LOG_INFO(format("Simulation result on '{}': {}", res.labels[i], simRes));
+        }
+    }
+    else {
+        LOG_ERROR("Error with NodePriorityProperty::satisfies(): failed to match!");
+    }
 
     return 0;
 }

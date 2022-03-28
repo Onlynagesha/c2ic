@@ -35,12 +35,12 @@ struct AlgorithmArguments {
     std::size_t     sampleLimit = halfMax<std::size_t>;
     // How many times to test the solution by forward simulation
     std::size_t     testTimes = 10000;
-    // Algorithm approximation ratio = delta - epsilon
+    // Algorithm approximation ratio = delta - epsilon_pr
     // delta = 1 - 1/e (about 0.632) by default
-    // IMM algorithm returns a solution of approximation ratio (delta - epsilon)
+    // IMM algorithm returns a solution of approximation ratio (delta - epsilon_pr)
     //  WITH at least 1 - (1/n)^ell probability
     double          delta = 1.0 - 1.0 / ns::e;
-    // Controls the probability of an (delta - epsilon)-approximate solution
+    // Controls the probability of a (delta - epsilon_pr)-approximate solution
     // The higher ell, the lower probability for a low-quality result,
     //  but the higher time & space consumption
     // ell = 1.0 by default
@@ -48,13 +48,22 @@ struct AlgorithmArguments {
     // Controls the approximation ratio
     // The lower delta, the higher approximation ratio (i.e. higher quality result)
     //  but the higher time & space consumption
-    double          epsilon;
+    double          epsilon_pr;
+    double          epsilon_sa;
+    // Minimum average gain that a node s should contribute to certain center node v
+    //  during SA-IMM algorithm.
+    // This threshold is set to save memory usage by ignoring nodes with too little contribution.
+    double          gainThreshold_sa = 0.0;
 
     // The following parameters are derived from those above
     // See .updateValues() for details
+    double          ellP;
+
     double          alpha;
     double          beta;
-    double          theta0;
+    double          theta0_pr;
+    double          kappa;
+    double          theta_sa;
 
     double          log2N;      // log2(n)
     double          lnN;        // ln(n)
@@ -72,11 +81,26 @@ struct AlgorithmArguments {
             lnCnk -= std::log(x);
         }
 
-        alpha = delta * std::sqrt(ell * lnN + ns::ln2);
-        beta = std::sqrt(delta * (ell * lnN + lnCnk + ns::ln2));
-        theta0 = (1.0 + ns::sqrt2 * epsilon / 3.0)
-                 * (lnCnk + ell * lnN + std::log(log2N))
-                 / std::pow(epsilon, 2.0);
+        ellP = ell * (1.0 + ns::ln2 / lnN);
+
+        alpha = delta * std::sqrt(ellP * lnN + ns::ln2);
+        beta = std::sqrt(delta * (ellP * lnN + lnCnk + ns::ln2));
+        theta0_pr = (1.0 + ns::sqrt2 * epsilon_pr / 3.0)
+                    * (lnCnk + ellP * lnN + std::log(log2N))
+                    / std::pow(epsilon_pr, 2.0);
+
+        kappa = epsilon_sa / (2.0 * delta - epsilon_sa);
+        theta_sa = (2.0 + 2.0 * kappa / 3.0)
+                * (1.0 + delta * kappa)
+                * ((ellP + 1.0) * lnN + ns::ln2)
+                / ((2.0 + delta) * std::pow(kappa, 3.0));
+    }
+
+    void setPriority(int _caPlus, int _ca, int _cr, int _crMinus) {
+        this->caPlus = _caPlus;
+        this->ca = _ca;
+        this->cr = _cr;
+        this->crMinus = _crMinus;
     }
 
     void updateValues(std::size_t _n) {
@@ -123,15 +147,18 @@ struct AlgorithmArguments {
             }
             priorityStr += stateOfPriority(i);
         }
+        priorityStr += " : " + NodePriorityProperty::of(caPlus, ca, cr, crMinus).dump();
 
         auto res = std::string("Arguments:\n") + doFormat({
             {"graphPath", graphPath},
             {"seedSetPath", seedSetPath},
             {"priority", priorityStr},
             {"lambda", toString(lambda)},
-            {"epsilon", toString(epsilon)},
+            {"epsilon_pr", toString(epsilon_pr)},
+            {"epsilon_sa", toString(epsilon_sa)},
             {"ell", toString(ell)},
             {"delta", toString(delta)},
+            {"gainThreshold_sa", toString(gainThreshold_sa)},
             {"n", toString(n)},
             {"k", toString(k)},
             {"sampleLimit", toString(sampleLimit)},
@@ -139,7 +166,9 @@ struct AlgorithmArguments {
         }) + "Derived arguments:\n" + doFormat({
             {"alpha", toString(alpha)},
             {"beta", toString(beta)},
-            {"theta0", toString(theta0)}
+            {"theta0_pr", toString(theta0_pr)},
+            {"kappa", toString(kappa)},
+            {"theta_sa", toString(theta_sa)}
         });
         // Removes one trailing '\n'
         res.pop_back();
