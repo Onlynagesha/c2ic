@@ -19,6 +19,10 @@ bool parseArgsFromTokens(
             .help("Path of the seed set file")
             .required();
 
+    parser.add_argument("-algo")
+            .help("The algorithm to use: 'Auto', 'PR-IMM', 'SA-IMM' or 'SA-RG-IMM'")
+            .default_value(std::string("Auto"));
+
     parser.add_argument("-k")
             .help("Number of boosted nodes")
             .scan<'i', int>()
@@ -29,10 +33,20 @@ bool parseArgsFromTokens(
             .scan<'u', std::size_t>()
             .default_value<std::size_t>(halfMax<std::size_t> + 0u);
 
+    parser.add_argument("-theta-sa-limit")
+            .help("Limit of theta_sa in SA-IMM algorithm")
+            .scan<'u', std::size_t>()
+            .default_value<std::size_t>(halfMax<std::size_t> + 0u);
+
     parser.add_argument("-test-times")
             .help("How many times to check the solution by forward simulation")
             .scan<'u', std::size_t>()
             .default_value<std::size_t>(10000);
+
+    parser.add_argument("-log-per-percentage")
+            .help("Frequency for debug logging")
+            .scan<'g', double>()
+            .default_value<double>(5.0);
 
     parser.add_argument("-epsilon", "-epsilon1", "-epsilon-pr")
             .help("Epsilon1 in PR-IMM algorithm")
@@ -69,10 +83,27 @@ bool parseArgsFromTokens(
         parser.parse_args(tokens);
         args.graphPath = parser.get("-graph");
         args.seedSetPath = parser.get("-seedset");
+        args.algo = CaseInsensitiveString(parser.get("-algo").c_str()); // NOLINT(readability-redundant-string-cstr)
+
+        static const char* delims = " _,;";
+        // Replaces "PR_IMM" to "PR-IMM" for example
+        for (std::size_t pos = args.algo.find_first_of(delims);
+                pos != std::string::npos && pos != args.algo.length();
+                pos = args.algo.find_first_of(delims, pos + 1)) {
+            args.algo[pos] = '-';
+        }
+
+        static auto validAlgoNames = {"auto", "pr-imm", "sa-imm", "sa-rg-imm"};
+        if (rs::count(validAlgoNames, args.algo) == 0) {
+            LOG_ERROR("Invalid algorithm name!");
+            throw std::invalid_argument("Invalid algorithm name!");
+        }
 
         args.k = parser.get<int>("-k");
         args.sampleLimit = parser.get<std::size_t>("-sample-limit");
+        args.thetaSALimit = parser.get<std::size_t>("-theta-sa-limit");
         args.testTimes = parser.get<std::size_t>("-test-times");
+        args.logPerPercentage = parser.get<double>("-log-per-percentage");
         args.epsilon_pr = parser.get<double>("-epsilon-pr");
         args.epsilon_sa = parser.get<double>("-epsilon-sa");
         // epsilon2 = epsilon1 by default
@@ -83,9 +114,18 @@ bool parseArgsFromTokens(
         args.ell = parser.get<double>("-ell");
         args.gainThreshold_sa = parser.get<double>("-gain-threshold-sa");
 
+        if (args.logPerPercentage <= 0.0 || args.logPerPercentage > 100.0) {
+            LOG_WARNING("Invalid argument: logPerPercentage should be in (0, 100]. Related debug log is disabled.");
+            args.logPerPercentage = 200.0;
+        }
+
         if (args.epsilon_pr <= 0.0 || args.epsilon_pr >= args.delta) {
             LOG_ERROR("Invalid argument: epsilon_pr must be in (0, delta)!");
             throw std::invalid_argument("epsilon_pr must be in (0, delta)!");
+        }
+        if (args.epsilon_sa <= 0.0 || args.epsilon_sa >= args.delta) {
+            LOG_ERROR("Invalid argument: epsilon_sa must be in (0, delta)!");
+            throw std::invalid_argument("epsilon_sa must be in (0, delta)!");
         }
         if (args.gainThreshold_sa < 0.0 || args.gainThreshold_sa >= 1.0) {
             LOG_ERROR("Invalid argument: gainThreshold_sa must be in [0, 1)!");

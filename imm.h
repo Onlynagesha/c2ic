@@ -10,6 +10,7 @@
 #include <cmath>
 #include <locale>
 #include <numbers>
+#include <numeric>
 #include <vector> 
 
 /*
@@ -246,9 +247,6 @@ struct PRRGraphCollectionSA {
     // For each {v, g} in gainsByBoosted[s],
     //  node s makes gain = g to center node v, if the single node s is set as boosted
     std::vector<std::vector<Node>>  gainsByBoosted;
-    // For each {s, g} in gainsToCenter[v],
-    //  center node v will get gain = g, if the single node s is set as boosted
-//    std::vector<std::vector<Node>>  gainsToCenter;
 
     // Default ctor. is deleted to force initialization
     PRRGraphCollectionSA() = delete;
@@ -258,9 +256,7 @@ struct PRRGraphCollectionSA {
 
     // Initialize with n = graph size |V|, threshold, and seed set
     explicit PRRGraphCollectionSA(std::size_t _n, double _threshold, SeedSet _seeds):
-            n(_n), threshold(_threshold), seeds(std::move(_seeds)), gainsByBoosted(_n)
-//            ,gainsToCenter(_n)
-            {}
+            n(_n), threshold(_threshold), seeds(std::move(_seeds)), gainsByBoosted(_n) {}
 
     // Initialize with n = graph size |V|, threshold, and seed set
     void init(std::size_t _n, double _threshold, SeedSet _seeds) {
@@ -270,9 +266,6 @@ struct PRRGraphCollectionSA {
 
         gainsByBoosted.clear();
         gainsByBoosted.resize(n);
-
-//        gainsToCenter.clear();
-//        gainsToCenter.resize(n);
     }
 
     // Adds all the gains to current center
@@ -286,18 +279,18 @@ struct PRRGraphCollectionSA {
 //                gainsToCenter[center].push_back(Node{.index = s, .value = curGainsByBoosted[s]});
             }
         }
-        LOG_DEBUG(format("center = {}, total size = {}", center, nTotalRecords()));
     }
+
+private:
+    enum class HowToChoose { GreedyOne, RandomK };
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "ArgumentSelectionDefects"
-    // Selects k boosted nodes with greedy algorithm
-    // Returns the total gain contributed by the selected nodes.
-    // Selection results are written via an output iterator.
-    // You can provide iter = nullptr to skip this process.
-    template <class OutIter>
+    // Helper function of selection
+    // Merges greedy selection and random greedy together
+    template <HowToChoose how, class OutIter>
     requires (std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>)
-    double select(std::size_t k, OutIter iter = nullptr) {
+    double _select(std::size_t k, OutIter iter = nullptr) {
         double res = 0.0;
         auto selected = std::vector<std::size_t>();
         selected.reserve(k);
@@ -307,6 +300,8 @@ struct PRRGraphCollectionSA {
         // maxGainTo[v] = maximum gain to center node v among all the selected boosted nodes
         auto maxGainTo = std::vector<double>(n);
 
+        // Resets totalGainsBy[s] for each s according to maxGainTo[v] for each center v
+        //  with contribution of selected boosted nodes
         for (std::size_t i = 0; i < k; i++) {
             rs::fill(totalGainsBy, 0.0);
             for (std::size_t s = 0; s < n; s++) {
@@ -327,7 +322,24 @@ struct PRRGraphCollectionSA {
             }
 
             // Current node chosen as a boosted node
-            auto cur = rs::max_element(totalGainsBy) - totalGainsBy.begin();
+            std::size_t cur;
+            if constexpr (how == HowToChoose::GreedyOne) {
+                cur = rs::max_element(totalGainsBy) - totalGainsBy.begin();
+            } else {
+                auto nCandidates = std::min(k, n - selected.size() - seeds.size());
+                auto indices = std::vector<std::size_t>(n);
+                std::iota(indices.begin(), indices.end(), std::size_t{0});
+                // Gets the first k nodes that makes the maximum total gain
+                rs::nth_element(indices, indices.begin() + (std::ptrdiff_t)nCandidates,
+                                [&](std::size_t s1, std::size_t s2) {
+                    return totalGainsBy[s1] > totalGainsBy[s2];
+                });
+                // Picks one of the k candidates uniformly randomly
+                static auto gen = createMT19937Generator();
+                auto dist = std::uniform_int_distribution<std::size_t>(0, nCandidates - 1);
+                cur = indices[dist(gen)];
+            }
+
             res += totalGainsBy[cur];
             selected.push_back(cur);
             if constexpr (!std::same_as<OutIter, std::nullptr_t>) {
@@ -340,6 +352,29 @@ struct PRRGraphCollectionSA {
         }
 
         return res;
+    }
+
+public:
+    // Selects k boosted nodes with greedy algorithm
+    //  that is proved to have no less than (1 - 1/e) * OPT of this set-selection sub-problem
+    // Returns the total gain contributed by the selected nodes.
+    // Selection results are written via an output iterator.
+    // You can provide iter = nullptr to skip this process.
+    template <class OutIter>
+    requires (std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>)
+    double select(std::size_t k, OutIter iter = nullptr) {
+        return _select<HowToChoose::GreedyOne>(k, iter);
+    }
+
+    // Selects k boosted nodes with random-greedy algorithm
+    //  that is proved to have no less than 1/e * OPT of this set-selection sub-problem
+    // Returns the total gain contributed by the selected nodes.
+    // Selection results are written via an output iterator.
+    // You can provide iter = nullptr to skip this process.
+    template <class OutIter>
+    requires (std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>)
+    double randomSelect(std::size_t k, OutIter iter = nullptr) {
+        return _select<HowToChoose::RandomK>(k, iter);
     }
 #pragma clang diagnostic pop
 
@@ -376,7 +411,7 @@ struct IMMResult {
     double                      totalGain;
 };
 
-inline std::string toString(const IMMResult& item, int indent = -1) {
+inline std::string toString(const IMMResult& item, int indent = -1, int indentOutside = 0) {
     auto res = std::string("{");
     if (indent >= 0) {
         res += "\n" + std::string(indent, ' ');
@@ -389,7 +424,7 @@ inline std::string toString(const IMMResult& item, int indent = -1) {
     if (indent >= 0) {
         res += "\n";
     }
-    res += '}';
+    res += std::string(indentOutside, ' ') + '}';
     return res;
 }
 
@@ -411,7 +446,7 @@ inline std::string toString(const IMMResult3& item, int indent = 4, int indentIn
         if (indent >= 0) {
             res += "\n" + std::string(indent, ' ');
         }
-        res += format("'{0}': {1}", item.labels[i], toString(item[i], indentInside));
+        res += format("'{0}': {1}, ", item.labels[i], toString(item[i], indentInside, std::max(0, indent)));
     }
     if (indent >= 0) {
         res += "\n" + std::string(indent, ' ');
@@ -432,8 +467,8 @@ inline std::string toString(const IMMResult3& item, int indent = 4, int indentIn
 IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args);
 
 /*
- * Returns the result of SA_IMM algorithm with given seed set and arguments
- * ** FOR MONOTONIC CASES **
+ * Returns the result of SA_IMM algorithm (for monotonic cases)
+ *  or SA_RG_IMM algorithm (for non-monotonic cases) with given seed set and arguments
  */
 IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args);
 

@@ -100,14 +100,11 @@ namespace logger {
 
     class Logger {
     public:
-    // Default logger for Linux WITH GCC:
-    // Source location is displayed as file name
-    //  since in Linux the file name is shorter (parent directories is hidden)
-    static inline LogHeadFormatter defaultFormatter = LogHeadFormatter{
-        "[%time][%location] %level: ",
-        "%m-%d %T",
-        "%file:%line"
-    };
+        static inline LogHeadFormatter defaultFormatter = LogHeadFormatter{
+            "[%time][%location] %level: ",
+            "%m-%d %T",
+            "%file:%line"
+        };
 
     private:
         // Identifier of the logger
@@ -160,7 +157,9 @@ namespace logger {
             auto path = fs::path(loc.file_name());
             std::osyncstream(out)
                     << format(formatterString, buffer, toString(level), _id,
-                              path.filename().string(), loc.line(), loc.function_name())
+                              path.filename().string(), loc.line(),
+                              loc.function_name()
+                              )
                     << content << std::endl;
         }
 
@@ -271,25 +270,30 @@ namespace logger {
 }
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 0
+#define LOG_DEBUG_ENABLED
 #define LOG_DEBUG(...) logger::Loggers::debug(__VA_ARGS__)
 #else
 #define LOG_DEBUG(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 1
+#define LOG_INFO_ENABLED
 #define LOG_INFO(...) logger::Loggers::info(__VA_ARGS__)
 #else
 #define LOG_INFO(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 2
+#define LOG_WARNING_ENABLED
 #define LOG_WARNING(...) logger::Loggers::warning(__VA_ARGS__)
 #else
 #define LOG_WARNING(...) (void)0
 #endif
 
 #if !defined(LOG_LEVEL) || LOG_LEVEL <= 3
+#define LOG_ERROR_ENABLED
 #define LOG_ERROR(...) logger::Loggers::error(__VA_ARGS__)
+#define LOG_CRITICAL_ENABLED
 #define LOG_CRITICAL(...) logger::Loggers::critical(__VA_ARGS__)
 #else
 #define LOG_ERROR(...) (void)0

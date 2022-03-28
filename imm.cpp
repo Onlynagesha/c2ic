@@ -121,7 +121,7 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments
     return res; 
 }
 
-IMMResult SA_IMM_UB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args) {
+IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args) {
     // Prepare parameters
     setNodeStateGain(args.lambda);
     setNodeStatePriority(args.caPlus, args.ca, args.cr, args.crMinus);
@@ -132,12 +132,20 @@ IMMResult SA_IMM_UB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgume
         {"maxIndex", graph.nNodes()}
     });
     auto prrCollection = PRRGraphCollectionSA(graph.nNodes(), args.gainThreshold_sa, seeds);
+    bool usesRandomGreedy = args.algo == "sa-rg-imm" || !NodePriorityProperty::current().satisfies("m");
 
+    // Random greedy for non-monotonic cases
+    auto theta = std::min(
+            (std::size_t)(usesRandomGreedy ? args.theta_sa_rg : args.theta_sa),
+            args.thetaSALimit);
+    LOG_INFO(format("usesRandomGreedy = {}, theta = {}", usesRandomGreedy, theta));
+
+    auto timer = Timer();
     for (std::size_t v = 0; v != graph.nNodes(); v++) {
         // curGainsByBoosted[s] = How much gain to current center node v if s is chosen as one boosted node
         auto curGainsByBoosted = std::vector<double>(graph.nNodes());
 
-        for (std::size_t j = 0; j < (std::size_t)args.theta_sa; j++) {
+        for (std::size_t j = 0; j < theta; j++) {
             makeSketchSlow(graph, prrGraph, seeds, v);
             for (const auto& node: prrGraph.nodes()) {
                 curGainsByBoosted[index(node)] += gain(node.centerStateTo) - gain(prrGraph.centerState);
@@ -145,33 +153,51 @@ IMMResult SA_IMM_UB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgume
         }
         // Takes the average
         for (auto& c: curGainsByBoosted) {
-            c /= std::floor(args.theta_sa);
+            c /= std::floor(theta);
         }
         prrCollection.add(v, curGainsByBoosted);
+
+        double r0 = 100.0 * (double)v       / (double)graph.nNodes();
+        double r1 = 100.0 * (double)(v + 1) / (double)graph.nNodes();
+        if (std::floor(r0 / args.logPerPercentage) != std::floor(r1 / args.logPerPercentage)) {
+            LOG_INFO(format("SA_IMM_LB: {:.1f}% finished. "
+                             "Total gain records added = {}. "
+                             "Total time elapsed = {:.3f} sec.",
+                             r1 + 1e-6, prrCollection.nTotalRecords(), timer.elapsed().count()));
+        }
     }
 
+    LOG_INFO(format("Dump PRR-sketch collection for SA algorithm: {}", prrCollection.dump()));
+
     auto res = IMMResult{};
-    res.totalGain = prrCollection.select(args.k, std::back_inserter(res.boostedNodes));
+    if (usesRandomGreedy) {
+        res.totalGain = prrCollection.randomSelect(args.k, std::back_inserter(res.boostedNodes));
+    } else {
+        res.totalGain = prrCollection.select(args.k, std::back_inserter(res.boostedNodes));
+    }
+
     return res;
 }
 
 IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args) {
     auto res = IMMResult3{};
-    res.labels[0] = "Lower bound";
-    res.labels[1] = "Upper bound";
+    res.labels[0] = "Upper bound";
+    res.labels[1] = "Lower bound";
     res.labels[2] = "(Not used)";
 
-    // Lower bound
-    LOG_INFO("SA_IMM: Starts lower bound.");
-    auto argsLB = args;
-    argsLB.setPriority(3, 0, 1, 2); // Ca+ > Cr- > Cr > Ca
-    res[0] = PR_IMM(graph, seeds, argsLB);
-    LOG_INFO("SA_IMM: Finished lower bound.");
-
     // Upper bound
+    LOG_INFO("SA_IMM: Starts upper bound.");
+    auto argsUB = args;
+    argsUB.setPriority(3, 0, 1, 2); // Ca+ > Cr- > Cr > Ca
+    res[0] = PR_IMM(graph, seeds, argsUB);
+    LOG_INFO("SA_IMM: Finished upper bound. Result = " + toString(res[0], 4));
+
+    // Lower bound
     auto timer = Timer();
-    res[1] = SA_IMM_UB(graph, seeds, args);
-    LOG_INFO("SA_IMM: Finished upper bound. Time used = " + toString(timer.elapsed().count(), 'f', 3) + " sec.");
+    res[1] = SA_IMM_LB(graph, seeds, args);
+    LOG_INFO("SA_IMM: Finished lower bound. Time used = "
+            + toString(timer.elapsed().count(), 'f', 3) + " sec. "
+            + "Result = " + toString(res[1], 4));
 
     res.bestIndex = res[0].totalGain > res[1].totalGain ? 0 : 1;
     return res;

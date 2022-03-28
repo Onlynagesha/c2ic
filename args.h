@@ -8,21 +8,28 @@
 #include "argparse/argparse.hpp"
 #include "global.h"
 #include "immbasic.h"
+#include "utils.h"
 #include <optional>
 
 struct AlgorithmArguments {
     // Path of the graph file
-    std::string     graphPath;
+    std::string             graphPath;
     // Path of the seed set file
-    std::string     seedSetPath;
+    std::string             seedSetPath;
+    // Which algorithm to use
+    // "auto": decided by node state priority
+    // "pr-imm": PR-IMM algorithm (for M-S)
+    // "sa-imm": SA-IMM algorithm (for M-nS)
+    // "sa-rg-imm": SA-RG-IMM algorithm (for nM-nS)
+    CaseInsensitiveString   algo;
     // Priority values of the 4 node states
     // Default: Ca+ > Cr- > Cr > Ca
     // (whose gain is the upper bound for all 24 combinations)
     // See setNodeState(caPlus, ca, cr, crMinus) for details
-    int             caPlus = 3;
-    int             ca = 0;
-    int             cr = 1;
-    int             crMinus = 2;
+    int             caPlus;
+    int             ca;
+    int             cr;
+    int             crMinus;
     // Controls the weights that
     //  positive message and negative message contribute respectively
     // See nodeStateGain[] and setNodeStateGain(lambda) for details
@@ -32,19 +39,28 @@ struct AlgorithmArguments {
     // Number of boosted nodes to choose
     std::size_t     k;
     // The maximum number of PRR-sketch samples
-    std::size_t     sampleLimit = halfMax<std::size_t>;
+    std::size_t     sampleLimit;
+    // Limit of theta_sa
+    std::size_t     thetaSALimit;
     // How many times to test the solution by forward simulation
-    std::size_t     testTimes = 10000;
+    std::size_t     testTimes;
+    // Used for debug logging
+    double          logPerPercentage;
     // Algorithm approximation ratio = delta - epsilon_pr
     // delta = 1 - 1/e (about 0.632) by default
     // IMM algorithm returns a solution of approximation ratio (delta - epsilon_pr)
-    //  WITH at least 1 - (1/n)^ell probability
+    //  with at least 1 - (1/n)^ell probability
     double          delta = 1.0 - 1.0 / ns::e;
+    // Algorithm approximation ratio of random greedy = delta - epsilon_pr
+    // delta = 1/e (about 0.368) by default
+    // IMM algorithm with random greedy returns a solution of approximation ratio (delta - epsilon_pr)
+    //  with at least 1 - (1/n)^ell probability
+    double          delta_rg = 1.0 / ns::e;
     // Controls the probability of a (delta - epsilon_pr)-approximate solution
     // The higher ell, the lower probability for a low-quality result,
     //  but the higher time & space consumption
     // ell = 1.0 by default
-    double          ell = 1.0;
+    double          ell;
     // Controls the approximation ratio
     // The lower delta, the higher approximation ratio (i.e. higher quality result)
     //  but the higher time & space consumption
@@ -53,7 +69,7 @@ struct AlgorithmArguments {
     // Minimum average gain that a node s should contribute to certain center node v
     //  during SA-IMM algorithm.
     // This threshold is set to save memory usage by ignoring nodes with too little contribution.
-    double          gainThreshold_sa = 0.0;
+    double          gainThreshold_sa;
 
     // The following parameters are derived from those above
     // See .updateValues() for details
@@ -63,7 +79,9 @@ struct AlgorithmArguments {
     double          beta;
     double          theta0_pr;
     double          kappa;
+    double          kappa_rg;
     double          theta_sa;
+    double          theta_sa_rg;
 
     double          log2N;      // log2(n)
     double          lnN;        // ln(n)
@@ -89,11 +107,18 @@ struct AlgorithmArguments {
                     * (lnCnk + ellP * lnN + std::log(log2N))
                     / std::pow(epsilon_pr, 2.0);
 
+        auto getThetaSA = [this](double whichDelta, double whichKappa) {
+            return (2.0 + 2.0 * whichKappa / 3.0)
+                   * (1.0 + whichDelta + whichKappa)
+                   * ((ellP + 1.0) * lnN + ns::ln2)
+                   / ((2.0 + whichDelta) * std::pow(whichKappa, 3.0));
+        };
+
         kappa = epsilon_sa / (2.0 * delta - epsilon_sa);
-        theta_sa = (2.0 + 2.0 * kappa / 3.0)
-                * (1.0 + delta * kappa)
-                * ((ellP + 1.0) * lnN + ns::ln2)
-                / ((2.0 + delta) * std::pow(kappa, 3.0));
+        kappa_rg = epsilon_sa / (2.0 * delta_rg - epsilon_sa);
+
+        theta_sa = getThetaSA(delta, kappa);
+        theta_sa_rg = getThetaSA(delta_rg, kappa_rg);
     }
 
     void setPriority(int _caPlus, int _ca, int _cr, int _crMinus) {
@@ -158,17 +183,21 @@ struct AlgorithmArguments {
             {"epsilon_sa", toString(epsilon_sa)},
             {"ell", toString(ell)},
             {"delta", toString(delta)},
+            {"delta_rg", toString(delta_rg)},
             {"gainThreshold_sa", toString(gainThreshold_sa)},
             {"n", toString(n)},
             {"k", toString(k)},
             {"sampleLimit", toString(sampleLimit)},
+            {"thetaSALimit", toString(thetaSALimit)},
             {"testTimes", toString(testTimes)}
         }) + "Derived arguments:\n" + doFormat({
             {"alpha", toString(alpha)},
             {"beta", toString(beta)},
             {"theta0_pr", toString(theta0_pr)},
             {"kappa", toString(kappa)},
-            {"theta_sa", toString(theta_sa)}
+            {"kappa_rg", toString(kappa_rg)},
+            {"theta_sa", toString(theta_sa)},
+            {"theta_sa_rg", toString(theta_sa_rg)}
         });
         // Removes one trailing '\n'
         res.pop_back();

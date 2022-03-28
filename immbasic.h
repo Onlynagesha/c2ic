@@ -364,6 +364,11 @@ public:
         return _Sr;
     }
 
+    // Total number of seeds, including Sa and Sr
+    [[nodiscard]] std::size_t size() const {
+        return _Sa.size() + _Sr.size();
+    }
+
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "bugprone-sizeof-container"
     [[nodiscard]] std::size_t totalBytesUsed() const {

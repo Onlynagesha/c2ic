@@ -20,14 +20,14 @@ int main(int argc, char** argv) {
     LOG_INFO(args.dump());
 
     auto property = NodePriorityProperty::current();
-    if (property.satisfies("m-s")) {
+    if (args.algo == "pr-imm" || property.satisfies("m-s")) {
         auto res = PR_IMM(graph, seeds, args);
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
 
         auto simRes = simulate(graph, seeds, res.boostedNodes, args.testTimes);
         LOG_INFO(format("Simulation result: {}", simRes));
     }
-    else if (property.satisfies("m-ns")) {
+    else if (args.algo == "sa-imm" || args.algo == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);
         LOG_INFO("SA-IMM result: " + toString(res, 4, 4));
 
@@ -37,7 +37,7 @@ int main(int argc, char** argv) {
         }
     }
     else {
-        LOG_ERROR("Error with NodePriorityProperty::satisfies(): failed to match!");
+        LOG_ERROR("Error with NodePriorityProperty::satisfies(): failed to match any algorithm!");
     }
 
     return 0;
