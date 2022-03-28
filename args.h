@@ -177,6 +177,7 @@ struct AlgorithmArguments {
         auto res = std::string("Arguments:\n") + doFormat({
             {"graphPath", graphPath},
             {"seedSetPath", seedSetPath},
+            {"algo", toString(algo)},
             {"priority", priorityStr},
             {"lambda", toString(lambda)},
             {"epsilon_pr", toString(epsilon_pr)},
