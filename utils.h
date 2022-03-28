@@ -5,11 +5,25 @@
 #ifndef GRAPH_UTILS_H
 #define GRAPH_UTILS_H
 
+#include "global.h"
 #include <cctype>
 #include <charconv>
+#include <chrono>
+#include <concepts>
+#include <limits>
 #include <random>
 #include <ranges>
 #include <string>
+#include <string_view>
+#include <type_traits>
+
+// +inf
+template <class I> requires std::integral<I> || std::floating_point<I>
+constexpr I halfMax = std::numeric_limits<I>::max() / 2;
+
+// -inf
+template <class I> requires std::integral<I> || std::floating_point<I>
+constexpr I halfMin = std::numeric_limits<I>::lowest() / 2;
 
 // Factory function for std::mt19937 pseudo-random generator
 inline auto createMT19937Generator(unsigned initialSeed = 0) noexcept {
@@ -63,7 +77,35 @@ struct ci_char_traits : public std::char_traits<char> {
 // Case-insensitive string type
 using CaseInsensitiveString = std::basic_string<char, ci_char_traits>;
 
-// Transforms to std::string
+template <class T, class... Args>
+concept SameAsOneOf = (std::same_as<T, Args> || ...);
+
+template <class T, class... Args>
+concept ConvertibleToOneOf = (std::convertible_to<T, Args> || ...);
+
+template <class T, class... Args>
+concept SameAsOneOfWithoutCVRef =
+        (std::same_as<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
+
+template <class T, class... Args>
+concept ConvertibleToOneOfWithoutCVRef =
+        (std::convertible_to<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
+
+template <class Inst, template <class...> class Tp>
+constexpr bool isTemplateInstanceOf = false;
+
+template<template <class...> class Tp, class... Args>
+constexpr bool isTemplateInstanceOf<Tp<Args...>, Tp> = true;
+
+template <class Inst, template <class...> class Tp>
+concept TemplateInstanceOf = isTemplateInstanceOf<Inst, Tp>;
+
+// Identity of std::string
+inline const std::string& toString(const std::string& str) noexcept {
+    return str;
+}
+
+// Transforms to std::string, specialization to other std::basic_string types
 template <class Traits, class Alloc>
 inline std::string toString(const std::basic_string<char, Traits, Alloc>& str) noexcept {
     return {str.begin(), str.end()};
@@ -78,20 +120,6 @@ inline std::string toString(const char* str) noexcept {
 inline std::string toString(char c) noexcept {
     return {1, c};
 }
-
-template <class T, class... Args>
-concept SameAsOneOf = (std::same_as<T, Args> || ...);
-
-template <class T, class... Args>
-concept ConvertibleToOneOf = (std::convertible_to<T, Args> || ...);
-
-template <class T, class... Args>
-concept SameAsOneOfWithoutCVRef =
-        (std::same_as<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
-
-template <class T, class... Args>
-concept ConvertibleToOneOfWithoutCVRef =
-        (std::convertible_to<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
 
 // Transforms integer type to std::string
 template <std::integral IntType> requires (!SameAsOneOf<IntType, bool, signed char, unsigned char>)
@@ -132,7 +160,27 @@ inline std::string toString(FloatType value, char fmt, Args... precision) noexce
 }
 
 template <class T> concept HasToString = requires(std::decay_t<T> x) {
-    { toString(x) } -> std::same_as<std::string>;
+    { toString(x) } -> ConvertibleToOneOfWithoutCVRef<std::string>;
+};
+
+// Some other types with std::format are omitted
+template <class T>
+concept HasStdFormatter = std::is_arithmetic_v<T>
+        || std::is_pointer_v<std::decay_t<T>>
+        || std::same_as<T, std::nullptr_t>
+        || TemplateInstanceOf<T, std::basic_string>
+        || TemplateInstanceOf<T, std::basic_string_view>
+        || TemplateInstanceOf<T, std::chrono::duration>
+        || std::chrono::is_clock_v<T>;
+
+// A general formatter for types that supports toString()
+template <class T> requires (HasToString<T> && !HasStdFormatter<T>)
+struct FORMAT_NAMESPACE::formatter<T>: FORMAT_NAMESPACE::formatter<std::string, char> {
+    template<class FormatContext>
+    auto format(const T& value, FormatContext& fc) {
+        auto str = toString(value);
+        return FORMAT_NAMESPACE::formatter<std::string, char>::format(str, fc);
+    }
 };
 
 // Joins all the values with given delimiter

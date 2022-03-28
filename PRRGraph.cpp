@@ -1,6 +1,7 @@
 #include "global.h"
 #include "Logger.h"
 #include "PRRGraph.h"
+#include "utils.h"
 #include <cassert>
 #include <queue>
 #include <vector>

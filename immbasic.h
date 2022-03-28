@@ -3,6 +3,7 @@
 
 #include "global.h"
 #include "Graph.h"
+#include "utils.h"
 #include <algorithm>
 #include <array>
 #include <cassert>
@@ -194,7 +195,7 @@ struct NodePriorityProperty {
         return res;
     }
 
-    // Checks WITH given token sequence (e.g. "M - nS"). Tokens are case-insensitive
+    // Checks with given token sequence (e.g. "M - nS"). Tokens are case-insensitive
     // "M":  expected to be monotonic
     // "nM":                non-monotonic
     // "S":  expected to be submodular
@@ -280,21 +281,6 @@ constexpr const char* toString(LinkState t) {
         return "(ERROR)";
     }
 }
-
-/*
-* Formatter of node state or link state.
-* for std::format or fmt::format
-*/
-template <class State> 
-    requires std::same_as<State, NodeState> || std::same_as<State, LinkState>
-struct FORMAT_NAMESPACE::formatter<State, char>:
-    FORMAT_NAMESPACE::formatter<const char*, char> {
-
-    template<class FormatContext>
-    auto format(State t, FormatContext& fc) {
-        return FORMAT_NAMESPACE::formatter<const char*, char>::format(toString(t), fc);
-    }
-};
 
 /*
 * Seed set. 
@@ -554,16 +540,75 @@ inline SeedSet readSeedSet(const fs::path& path) {
     return readSeedSet(fin);
 }
 
-/*
- * Simulates message propagation without any boosted node
- * Returns the total gain of all the nodes, Ca counted as lambda, Cr counted as lambda - 1
- */
-double simulate(IMMGraph& graph, const SeedSet& seeds);
+struct SimResultItem {
+    double positiveGain;    // positive = sum of all the gain(v) > 0
+    double negativeGain;    // negative = sum of all the gain(v) < 0
+    double totalGain;       // total = positive + negative
+
+    void add(double value) {
+        totalGain += value;
+        if (value > 0.0) {
+            positiveGain += value;
+        } else {
+            negativeGain += value;
+        }
+    }
+
+    SimResultItem& operator += (const SimResultItem& rhs) {
+        positiveGain += rhs.positiveGain;
+        negativeGain += rhs.negativeGain;
+        totalGain += rhs.totalGain;
+        return *this;
+    }
+
+    SimResultItem& operator /= (std::size_t n) {
+        positiveGain /= (double) n;
+        negativeGain /= (double) n;
+        totalGain /= (double) n;
+        return *this;
+    }
+
+    SimResultItem operator - (const SimResultItem& rhs) const {
+        return SimResultItem{
+            .positiveGain = this->positiveGain - rhs.positiveGain,
+            .negativeGain = this->negativeGain - rhs.negativeGain,
+            .totalGain = this->totalGain - rhs.totalGain
+        };
+    }
+};
+
+inline std::string toString(const SimResultItem& item) noexcept {
+    return format(
+            "{{.totalGain = {:.2f}, .positiveGain = {:.2f}, .negativeGain = {:.2f}}}",
+            item.totalGain, item.positiveGain, item.negativeGain);
+}
+
+struct SimResult {
+    SimResultItem withBoosted;
+    SimResultItem withoutBoosted;
+    SimResultItem diff;     // diff = without boosted - without boosted
+};
+
+// Converts to a multi-line string
+inline std::string toString(const SimResult& res) noexcept {
+    return format(
+            "{{\n"
+            "       .withBoosted = {0}\n"
+            "    .withoutBoosted = {1}\n"
+            "              .diff = {2}\n}}",
+            res.withBoosted, res.withoutBoosted, res.diff);
+}
 
 /*
  * Simulates message propagation with given boosted nodes
- * Returns the total gain of all the nodes, Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- as 0
+ * Each simulation sums up the gain of all the nodes,
+ *  Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- and None as 0.
+ * Returns:
+ *  (1) Results with boosted nodes
+ *  (2) Results without boosted nodes
+ *  (3) Difference of the two, with - without
  */
-double simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::size_t>& boostedNodes);
+SimResult simulate(IMMGraph& graph, const SeedSet& seeds,
+                   const std::vector<std::size_t>& boostedNodes, std::size_t simTimes);
 
 #endif //DAWNSEEKER_IMMBASIC_H

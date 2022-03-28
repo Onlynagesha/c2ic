@@ -9,7 +9,7 @@
  * Simulates message propagation with given boosted nodes
  * Returns the total gain of all the nodes, Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- as 0
  */
-double simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::size_t>& boostedNodes) {
+SimResultItem simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::size_t>& boostedNodes) {
     // Initializes all the link states
     IMMLink::refreshAllStates();
     // Initializes all the nodes: state = None, dist = +inf, boosted = false
@@ -71,9 +71,9 @@ double simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::si
         }
     }
 
-    double res = 0.0;
+    auto res = SimResultItem{};
     for (const auto& node: graph.nodes()) {
-        res += gain(node.state);
+        res.add(gain(node.state));
     }
     return res;
 }
@@ -82,8 +82,29 @@ double simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::si
  * Simulates message propagation without any boosted node
  * Returns the total gain of all the nodes, Ca counted as lambda, Cr counted as lambda - 1
  */
-double simulate(IMMGraph& graph, const SeedSet& seeds) {
+SimResultItem simulate(IMMGraph& graph, const SeedSet& seeds) {
     auto emptyList = std::vector<std::size_t>{};
     return simulate(graph, seeds, emptyList);
 }
 
+/*
+ * Simulates message propagation with given boosted nodes
+ * Each simulation sums up the gain of all the nodes,
+ *  Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- and None as 0.
+ * Returns:
+ *  (1) Results with boosted nodes
+ *  (2) Results without boosted nodes
+ *  (3) Difference of the two, with - without
+ */
+SimResult simulate(IMMGraph& graph, const SeedSet& seeds,
+                   const std::vector<std::size_t>& boostedNodes, std::size_t simTimes) {
+    auto res = SimResult{};
+    for (std::size_t i = 0; i != simTimes; i++) {
+        res.withBoosted += simulate(graph, seeds, boostedNodes);
+        res.withoutBoosted += simulate(graph, seeds);
+    }
+    res.withBoosted /= simTimes;
+    res.withoutBoosted /= simTimes;
+    res.diff = res.withBoosted - res.withoutBoosted;
+    return res;
+}

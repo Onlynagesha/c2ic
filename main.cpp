@@ -23,12 +23,8 @@ int main(int argc, char** argv) {
     LOG_INFO(format("Final gain = {:.3f}", res.totalGain));
     LOG_INFO(join(res.boostedNodes, ", ", "Selected boosted nodes: {", "}"));
 
-    double simGain = 0.0;
-    for (std::size_t i = 0; i < args.testTimes; i++) {
-        simGain += simulate(graph, seeds, res.boostedNodes) - simulate(graph, seeds);
-    }
-    simGain /= (double)args.testTimes;
-    LOG_INFO(format("Simulated gain = {:.3f}", simGain));
+    auto simRes = simulate(graph, seeds, res.boostedNodes, args.testTimes);
+    LOG_INFO(format("Simulation result: {}", simRes));
 
     return 0;
 }
