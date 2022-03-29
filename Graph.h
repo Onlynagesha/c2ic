@@ -200,7 +200,7 @@ namespace graph {
     // Let I be the maximal original index,
     //  this data structure needs a linear list of size O(I) to store all the mapped indices.
     // For check-free graph methods, reservation on maxIndex is required.
-    class SemiSparseIndexMap {
+    class LinearIndexMap {
     private:
         // Null index, _map[v] == null indicates that node v has not been allocated a mapped index
         static constexpr std::size_t null = static_cast<std::size_t>(-1);
@@ -208,13 +208,13 @@ namespace graph {
         std::vector<std::size_t> _map;
 
     public:
-        SemiSparseIndexMap() = default;
+        LinearIndexMap() = default;
 
         // Reserves the linear list by maximal original index
         void reserve(const std::map<std::string, std::size_t>& args) {
             auto it = args.find("maxIndex");
             if (it == args.end()) {
-                std::cerr << "WARNING on SemiSparseIndexMap::reserve: argument 'maxIndex' is not provided!"
+                std::cerr << "WARNING on LinearIndexMap::reserve: argument 'maxIndex' is not provided!"
                           << std::endl;
                 assert(!"argument 'maxIndex' is not provided");
             }
@@ -246,7 +246,7 @@ namespace graph {
         [[nodiscard]] std::size_t get(const NodeOrUnsignedIndex auto& node) const {
             // This method shall behave as if it's const-qualified.
             // However, the internal data structure may change if an index allocation is triggered
-            return const_cast<SemiSparseIndexMap*>(this)->_get(index(node));
+            return const_cast<LinearIndexMap*>(this)->_get(index(node));
         }
 
         // Gets the mapped index, assuming the map index always exist
@@ -274,6 +274,39 @@ namespace graph {
         }
     };
 
+    // Stores mapped indices with an associative container
+    // The most generic one (as long as IndexType supports operator <),
+    //  but with the cost of O(log |V|) lookup
+    template <class Node>
+    class AssociativeIndexMap {
+    public:
+        using IndexType = std::remove_cvref_t<decltype(index(std::declval<Node>()))>;
+
+    private:
+        std::map<IndexType, std::size_t> _map;
+
+    public:
+        AssociativeIndexMap() = default;
+
+        void clear() {
+            _map.clear();
+        }
+
+        std::size_t get(const NodeOrIndex auto& node) const {
+            auto it = _map.find(index(node));
+            assert(it != _map.end());
+            return it->second;
+        }
+
+        bool check(const NodeOrIndex auto& node) const {
+            return _map.contains(index(node));
+        }
+
+        void set(const NodeOrIndex auto& node, std::size_t mappedIndex) {
+            _map[index(node)] = mappedIndex;
+        }
+    };
+
     // Template parameters of Graph G(V,E):
     // Node: type of the node, index() function shall be provided for its index (before mapping)
     // Link: type of the link, index1() and index2() for its node indices (before mapping)
@@ -282,7 +315,7 @@ namespace graph {
     //  If enabled, reserve({{"nodes", |V|}, {"links", |E|}}) must be performed.
     template <NodeOrIndex Node,
             LinkType Link,
-            IndexMapType IndexMap = SemiSparseIndexMap,
+            IndexMapType IndexMap = AssociativeIndexMap<Node>,
             tags::EnablesFastAccess enablesFastAccess = tags::EnablesFastAccess::No>
     class Graph {
         // If both nodes and links are preserved,
@@ -724,7 +757,17 @@ namespace graph {
             return _nodes[_fastGet(idx)];
         }
 
-        // Gets a pointer to the link u -> v or u -- v WITH given node indices,
+        // Gets the mapped index of given node
+        std::size_t mappedIndex(const NodeOrIndex auto& node) const {
+            return _indexMap.get(node);
+        }
+
+        // Gets the mapped index of given node, with faster access
+        std::size_t fastMappedIndex(const NodeOrIndex auto& node) const {
+            return _fastGet(node);
+        }
+
+        // Gets a pointer to the link u -> v or u -- v with given node indices,
         // or nullptr when it doesn't exist. (non-const overload)
         // Checks whether both nodes exist. If not, returns nullptr.
         Link* link(const NodeOrIndex auto& u, const NodeOrIndex auto& v) {
@@ -735,21 +778,21 @@ namespace graph {
                    : nullptr;
         }
 
-        // Gets a pointer to the link u -> v or u -- v WITH given node indices,
+        // Gets a pointer to the link u -> v or u -- v with given node indices,
         // or nullptr when it doesn't exist. (const-qualified overload)
         // Checks whether both nodes exist. If not, returns nullptr.
         const Link* link(const NodeOrIndex auto& u, const NodeOrIndex auto& v) const {
             return const_cast<Graph*>(this)->link(u, v);
         }
 
-        // Gets a pointer to the link u -> v or u -- v WITH given node indices.
+        // Gets a pointer to the link u -> v or u -- v with given node indices.
         // or nullptr if it doesn't exist. (non-const overload)
         // Fewer checks assuming that both nodes exist.
         Link* fastLink(const NodeOrIndex auto& u, const NodeOrIndex auto& v) {
             return _findLink(_fastGet(u), _fastGet(v));
         }
 
-        // Gets a pointer to the link u -> v or u -- v WITH given node indices.
+        // Gets a pointer to the link u -> v or u -- v with given node indices.
         // or nullptr if it doesn't exist. (const-qualified overload)
         // Fewer checks assuming that both nodes exist.
         const Link* fastLink(const NodeOrIndex auto& u, const NodeOrIndex auto& v) const {

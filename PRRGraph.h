@@ -27,7 +27,7 @@ struct PRRNode : graph::BasicNode<std::size_t> { // NOLINT(cppcoreguidelines-pro
 
 using PRRGraphBase = graph::Graph<
         PRRNode, IMMLink,
-        graph::SemiSparseIndexMap,
+        graph::LinearIndexMap,
         graph::tags::EnablesFastAccess::Yes
 >;
 
