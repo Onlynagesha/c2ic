@@ -9,6 +9,7 @@ link_libraries(fmt)
 endif()
 
 include_directories(argparse)
-add_executable(Graph main.cpp argparse/argparse.hpp
-        global.h Logger.h imm.cpp imm.h immbasic.h PRRGraph.cpp PRRGraph.h
-        Timer.h args.h args.cpp utils.h immbasic.cpp)
+#add_executable(Graph main.cpp argparse/argparse.hpp
+#        global.h Logger.h imm.cpp imm.h immbasic.h PRRGraph.cpp PRRGraph.h
+#        Timer.h args.h args.cpp cecstr.h immbasic.cpp args-v2.h)
+add_executable(Graph playground.cpp)

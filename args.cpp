@@ -83,7 +83,7 @@ bool parseArgsFromTokens(
         parser.parse_args(tokens);
         args.graphPath = parser.get("-graph");
         args.seedSetPath = parser.get("-seedset");
-        args.algo = CaseInsensitiveString(parser.get("-algo").c_str()); // NOLINT(readability-redundant-string-cstr)
+        args.algo = ci_string(parser.get("-algo").c_str()); // NOLINT(readability-redundant-string-cstr)
 
         static const char* delims = " _,;";
         // Replaces "PR_IMM" to "PR-IMM" for example

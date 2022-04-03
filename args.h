@@ -21,11 +21,8 @@ struct AlgorithmArguments {
     // "pr-imm": PR-IMM algorithm (for M-S)
     // "sa-imm": SA-IMM algorithm (for M-nS)
     // "sa-rg-imm": SA-RG-IMM algorithm (for nM-nS)
-    CaseInsensitiveString   algo;
+    ci_string   algo;
     // Priority values of the 4 node states
-    // Default: Ca+ > Cr- > Cr > Ca
-    // (whose gain is the upper bound for all 24 combinations)
-    // See setNodeState(caPlus, ca, cr, crMinus) for details
     int             caPlus;
     int             ca;
     int             cr;

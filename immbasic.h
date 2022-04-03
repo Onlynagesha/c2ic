@@ -18,40 +18,43 @@ inline auto returnsValue = ReturnsValueTag{};
 
 enum class NodeState {
     None = 0,       // Neither positive nor negative
-    CaPlus = 1,     // Ca+: Boosted node WITH positive message
-                    //      which propagates WITH higher probability
-    Ca = 2,         // Ca:  Non-boosted node WITH positive message
-    Cr = 3,         // Cr:  Non-boosted node WITH negative message
-    CrMinus = 4     // Cr-: Boosted node WITH negative message
+    CaPlus = 1,     // Ca+: Boosted node with positive message
+                    //      which propagates with higher probability
+    Ca = 2,         // Ca:  Non-boosted node with positive message
+    Cr = 3,         // Cr:  Non-boosted node with negative message
+    CrMinus = 4     // Cr-: Boosted node with negative message
                     //      which propagates 'neutralized' negative message instead
 };
 
 enum class LinkState {
     NotSampleYet = 0,   // Not sampled initially
     Blocked = 1,        // Blocked link: unable to propagate any message
-    Active = 2,         // Active link:  message propagates WITH probability p
+    Active = 2,         // Active link:  message propagates with probability p
     Boosted = 3         // Boosted link: for a boosted link u -> v, 
                         //  if u receives boosted positive message (Ca+), 
-                        //  it propagates WITH probability pBoost >= p.
-                        //  Others (Ca, Cr, Cr-) propagate WITH probability p as usual
+                        //  it propagates with probability pBoost >= p.
+                        //  Others (Ca, Cr, Cr-) propagate with probability p as usual
 };
 
+using NodeStatePriorityArray = std::array<int, 5>;
+using NodeStateGainArray = std::array<double, 5>;
+
 /*
-* Let f(S) = the total gain WITH S = the set of boosted nodes
+* Let f(S) = the total gain with S = the set of boosted nodes
 *            as the expected number of extra nodes that get positive message due to S
-*            compared to that WITH no boosted nodes
-*     g(S) = the total gain WITH S = the set of boosted nodes
+*            compared to that with no boosted nodes
+*     g(S) = the total gain with S = the set of boosted nodes
 *            as the expected number of nodes prevented from negative message due to S
-*            compared to that WITH no boosted nodes
+*            compared to that with no boosted nodes
 * Then the objective function h(S) = lambda * f(S) + (1-lambda) * g(S)
-* Gain of each node state (WITH parameter lambda):
+* Gain of each node state (with parameter lambda):
 *   None:   0
 *   Ca+:    lambda
 *   Ca:     lambda
 *   Cr:     -(1-lambda)
 *   Cr-:    0
 */
-inline std::array<double, 5> nodeStateGain;
+inline NodeStateGainArray nodeStateGain;
 
 /*
 * Priority of the node states, higher is better
@@ -62,7 +65,7 @@ inline std::array<double, 5> nodeStateGain;
 *       priority[Ca]   = 0,
 *       priority[None] = -1 (None is always considered the lowest)
 */
-inline std::array<int, 5> nodeStatePriority;
+inline NodeStatePriorityArray nodeStatePriority;
 
 /*
 * Compares two node states by priority
@@ -82,10 +85,13 @@ inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
  * compare(A, B) == 0:      A and B are the same
  * compare(A, B)  < 0:      A has lower priority than B
  */
-inline int compare(const std::array<int, 5>& priority, NodeState A, NodeState B) {
+inline int compare(const NodeStatePriorityArray& priority, NodeState A, NodeState B) {
     return priority[static_cast<int>(A)] - priority[static_cast<int>(B)];
 }
 
+/*
+ * Compares with the global priority array
+ */
 inline int compare(NodeState A, NodeState B) {
     return compare(nodeStatePriority, A, B);
 }
@@ -127,17 +133,17 @@ inline bool isNegative(NodeState state) {
 }
 
 /*
-* Sets the gain of each state WITH given parameter lambda
+* Sets the gain of each state with given parameter lambda
 */
 inline void setNodeStateGain(double lambda) {
     // Default state: 0.0
     nodeStateGain[static_cast<int>(NodeState::None)] = 0.0;
-    // Gain WITH positive state: lambda
+    // Gain with positive state: lambda
     nodeStateGain[static_cast<int>(NodeState::CaPlus)] = lambda;
     nodeStateGain[static_cast<int>(NodeState::Ca)] = lambda;
-    // Gain WITH negative state: - (1.0 - lambda)
+    // Gain with negative state: - (1.0 - lambda)
     nodeStateGain[static_cast<int>(NodeState::Cr)] = lambda - 1.0;
-    // Gain WITH neutralized negative state: 0
+    // Gain with neutralized negative state: 0
     nodeStateGain[static_cast<int>(NodeState::CrMinus)] = 0.0;
 }
 
@@ -149,7 +155,7 @@ inline void setNodeStateGain(double lambda) {
 *       cr      = 1 (2nd lowest)
 *       crMinus = 2 (2nd highest)
 */
-inline std::array<int, 5> setNodeStatePriority(ReturnsValueTag, int caPlus, int ca, int cr, int crMinus) {
+inline NodeStatePriorityArray setNodeStatePriority(ReturnsValueTag, int caPlus, int ca, int cr, int crMinus) {
     // Checks the arguments to ensure they cover {0, 1, 2, 3}
     assert(((1 << caPlus) | (1 << ca) | (1 << cr) | (1 << crMinus)) == 0b1111);
 
@@ -176,7 +182,7 @@ struct NodePriorityProperty {
         return of(setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus));
     }
 
-    static NodePriorityProperty of(const std::array<int, 5>& priority) noexcept {
+    static NodePriorityProperty of(const NodeStatePriorityArray& priority) noexcept {
         auto oldPriority = nodeStatePriority;
         // Temporarily sets to current priority
         nodeStatePriority = priority;
@@ -219,7 +225,7 @@ struct NodePriorityProperty {
     // "nM":                non-monotonic
     // "S":  expected to be submodular
     // "nS":                non-submodular
-    bool satisfies(const CaseInsensitiveString& str) {
+    bool satisfies(const ci_string& str) {
         // Tokens are split by either of the following delimiters
         static const char* delims = " ,-;";
         // {token, which value to check, expected value}
@@ -330,7 +336,7 @@ public:
         // Sort respectively for binary search (if required)
         rs::sort(this->_Sa);
         rs::sort(this->_Sr);
-        // Initialize each bitset WITH the max index respectively
+        // Initialize each bitset with the max index respectively
         _bitsetA.resize(_Sa.back() + 1, false);
         _bitsetR.resize(_Sr.back() + 1, false);
 
@@ -474,7 +480,7 @@ public:
 
     /*
     * Sets the seed of the internal pseudo-random generator
-    * On testing scenario, it ensures the same generation results WITH the same seed
+    * On testing scenario, it ensures the same generation results with the same seed
     * (The default seed is something related to system clock)
     */
     static void setSeed(unsigned seed) {
@@ -516,7 +522,7 @@ using IMMGraph = graph::Graph<
 * File format:
 * The first line contains two integers V, E, denoting number of nodes and links
 * Then E lines, each line contains 4 values u, v, p, pBoost
-*   indicating a directed link u -> v WITH probabilities p and pBoost
+*   indicating a directed link u -> v with probabilities p and pBoost
 */
 inline IMMGraph readGraph(std::istream& in) {
     auto graph = IMMGraph(graph::tags::reservesLater);

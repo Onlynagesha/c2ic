@@ -20,7 +20,7 @@ std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const Si
         res += format("{} {} {}\n", s, graph.inDegree(s), graph.outDegree(s));
     }
     for (std::size_t i = 0; auto p: {&simRes.withBoosted, &simRes.withoutBoosted, &simRes.diff}) {
-        if (i != 0) {
+        if (i++ != 0) {
             res += '\n';
         }
         res += format("{} {} {}", p->totalGain, p->positiveGain, p->negativeGain);
@@ -29,7 +29,8 @@ std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const Si
 }
 
 int main(int argc, char** argv) {
-    logger::Loggers::add(std::make_shared<logger::Logger>("logger", std::clog, logger::LogLevel::Debug));
+    // To standard output
+    logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
 
     auto args = AlgorithmArguments();
     if (!parseArgs(args, argc, argv)) {

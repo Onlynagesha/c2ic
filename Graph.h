@@ -29,7 +29,7 @@ namespace graph {
         inline constexpr ReservesLater reservesLater = ReservesLater{};
     }
 
-    // A basic node type that contains simply the index, WITH index() function provided
+    // A basic node type that contains simply the index, with index() function provided
     // You can obtain index() for your own node type by inheriting BasicNode
     template <class IndexType>
     class BasicNode {
@@ -48,7 +48,7 @@ namespace graph {
         }
     };
 
-    // A basic link type that contains simply the node indices, WITH index1() and index2()
+    // A basic link type that contains simply the node indices, with index1() and index2()
     // You can obtain index1() and index2() for your own node by inheriting BasicLink
     template <class IndexType>
     class BasicLink {
@@ -101,7 +101,7 @@ namespace graph {
     };
 
     // Either node type of index type,
-    //  WITH constraint that the index type must be unsigned integer (e.g. std::size_t)
+    //  with constraint that the index type must be unsigned integer (e.g. std::size_t)
     template <class T>
     concept NodeOrUnsignedIndex = requires(T t) {
         // Use operator + to transform it as a rvalue
@@ -121,7 +121,7 @@ namespace graph {
         { index2(t) };
     };
 
-    // The link type WITH the constraint that
+    // The link type with the constraint that
     //  both node indices shall be unsigned integer (e.g. std::size_t)
     template <class T>
     concept LinkWithUnsignedIndex = requires(T t) {
@@ -154,9 +154,9 @@ namespace graph {
      *  for the sake of higher performance by preventing redundant checks
      * .fastSet(n, i) and .fastSet(node, i): sets the mapped index of node as i,
      *  assuming space has been reserved well
-     * .reserve(args) performs memory pre-allocation, WITH args: std::map<std::string, std::size_t>
+     * .reserve(args) performs memory pre-allocation, with args: std::map<std::string, std::size_t>
      * .clear() clears the index map to initial state
-     * .reserveClear() clears the index map, WITH the last reservation still works,
+     * .reserveClear() clears the index map, with the last reservation still works,
      *  which typically implies that no memory is deallocated
      */
 
@@ -227,7 +227,7 @@ namespace graph {
             _map.clear();
         }
 
-        // Resets the index map, WITH _map still reserved by the maxIndex
+        // Resets the index map, with _map still reserved by the maxIndex
         void reserveClear() {
             std::ranges::fill(_map, null);
         }
@@ -333,15 +333,15 @@ namespace graph {
         using RefLink = std::pair<Node&, Link&>;
         using ConstRefLink = std::pair<const Node&, const Link&>;
 
-        // Adjacency list of the graph, along WITH an inverse one for the transposed graph.
+        // Adjacency list of the graph, along with an inverse one for the transposed graph.
         // All the indices are mapped results of the index map.
         // For directed links,
         //  _adjList[u] contains all the links that starts from the node u
         //  _invAdjList[u] contains all the links that targets u
         // For bidirectional links,
-        //  both _adjList[u] and _invAdjList[u] contain all the links WITH u as an end
+        //  both _adjList[u] and _invAdjList[u] contain all the links with u as an end
         // If without fast-access enabled, each item in _adjList[u] is an index pair {v, l}
-        //  referring to the link u -> v (or u -- v) WITH link index = l.
+        //  referring to the link u -> v (or u -- v) with link index = l.
         // If fast-access enabled, each item in _adjList[u] is a reference pair {_nodes[v], _links[l]}
         using AdjList = std::vector<std::conditional_t<
                 enablesFastRefLink, RefLink, IndexRefLink>
@@ -394,7 +394,7 @@ namespace graph {
             return _indexMap.check(index1(link)) && _indexMap.check(index2(link));
         }
 
-        // Helper function to set the mapped index WITH the index map
+        // Helper function to set the mapped index with the index map
         //  assuming space in the index map has been reserved well.
         // The .fastSet() alternative is used if supported.
         void _fastSet(const NodeOrIndex auto& node, std::size_t mappedIndex) {
@@ -407,7 +407,7 @@ namespace graph {
 
         // Helper function to add a node.
         // If the node has never been added before, mapped index = |V| - 1 after adding.
-        // Otherwise, the old node WITH the same index will be replaced.
+        // Otherwise, the old node with the same index will be replaced.
         // Returns a pointer to the node added
         template <tags::DoCheck doCheck>
         Node* _addNode(Node node) {
@@ -415,8 +415,8 @@ namespace graph {
             auto mappedIndex = _nodes.size();
 
             if constexpr (doCheck == tags::DoCheck::Yes) {
-                // Checks whether some other node WITH the same index has been added before
-                // If added, then replace it WITH the current node
+                // Checks whether some other node with the same index has been added before
+                // If added, then replace it with the current node
                 if (_indexMap.check(node)) {
                     auto existedIndex = _fastGet(node);
                     _nodes[existedIndex] = std::move(node);
@@ -448,7 +448,7 @@ namespace graph {
             }
         }
 
-        // Adds a link object WITH mapped indices u -> v (or u -- v)
+        // Adds a link object with mapped indices u -> v (or u -- v)
         // Returns a pointer to the added link object
         template <tags::DoCheck doCheck, tags::IsBidirectional isBidirectional>
         Link* _addLink(std::size_t u, std::size_t v, Link link) {
@@ -478,7 +478,7 @@ namespace graph {
             return res;
         }
 
-        // Helper function to find a link WITH mapped index u -> v (or u -- v)
+        // Helper function to find a link with mapped index u -> v (or u -- v)
         // Returns a pointer to the link object found, or nullptr if not found
         Link* _findLink(std::size_t u, std::size_t v) const {
             for (const auto& e: _adjList[u]) {
@@ -502,11 +502,11 @@ namespace graph {
         // Default constructor is enabled only if fast access is not used
         Graph() requires (!enablesFastRefLink) = default;
 
-        // Constructor WITH a tags::reserveLater tag
+        // Constructor with a tags::reserveLater tag
         //  to indicate the reserve operation is performed later
         explicit Graph(tags::ReservesLater) {}
 
-        // Constructor WITH reserve arguments provided as std::map or an initializer_list
+        // Constructor with reserve arguments provided as std::map or an initializer_list
         //  e.g. { {"nodes", 10}, {"links", 20}, {"maxIndex", 30} }
         explicit Graph(const std::map<std::string, std::size_t>& reserveArgs) {
             reserve(reserveArgs);
@@ -626,14 +626,14 @@ namespace graph {
             }
         }
 
-        // Adds a node. If some other node WITH the same index exists,
+        // Adds a node. If some other node with the same index exists,
         //  that node will be replaced by the current one.
         // Returns a pointer to the node added.
         Node* addNode(Node node) {
             return _addNode<tags::DoCheck::Yes>(std::move(node));
         }
 
-        // Adds a node, assuming the node is always new, i.e. no other node WITH the same index
+        // Adds a node, assuming the node is always new, i.e. no other node with the same index
         // Returns a pointer to the node added.
         Node* fastAddNode(Node node) {
             return _addNode<tags::DoCheck::No>(std::move(node));
@@ -723,25 +723,25 @@ namespace graph {
             return _adjList[_fastGet(from)].size();
         }
 
-        // Gets a pointer of the node WITH given index. (non-const overload)
+        // Gets a pointer of the node with given index. (non-const overload)
         // If the node does not exist, returns nullptr.
         Node* node(const NodeOrIndex auto& idx) {
             return hasNode(idx) ? fastNode(idx) : nullptr;
         }
 
-        // Gets a pointer of the node WITH given index. (const-qualified overload)
+        // Gets a pointer of the node with given index. (const-qualified overload)
         // If the node does not exist, returns nullptr.
         const Node* node(const NodeOrIndex auto& idx) const {
             return const_cast<Graph*>(this)->node(idx);
         }
 
-        // Gets a pointer to the node WITH given index. (non-const overload)
+        // Gets a pointer to the node with given index. (non-const overload)
         // Assumes the node always exists.
         Node* fastNode(const NodeOrIndex auto& idx) {
             return _nodes.data() + _fastGet(idx);
         }
 
-        // Gets a pointer to the node WITH given index. (const-qualified overload)
+        // Gets a pointer to the node with given index. (const-qualified overload)
         // Assumes the node always exists.
         const Node* fastNode(const NodeOrIndex auto& idx) const {
             return const_cast<Graph*>(this)->fastNode(idx);
