@@ -5,6 +5,12 @@
 #ifndef DAWNSEEKER_GRAPH_ALL_H
 #define DAWNSEEKER_GRAPH_ALL_H
 
+/*!
+ * @file utils/all.h
+ * @author DawnSeeker (onlynagesha@163.com)
+ * @brief This file simply includes all the utility headers.
+ */
+
 #include "assert.h"
 #include "cstring.h"
 #include "format.h"

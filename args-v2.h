@@ -5,6 +5,7 @@
 #ifndef DAWNSEEKER_GRAPH_ARGS_V2_H
 #define DAWNSEEKER_GRAPH_ARGS_V2_H
 
+#include <bit>
 #include <charconv>
 #include <compare>
 #include <concepts>
@@ -26,6 +27,15 @@ namespace args {
         const char *str;
         const char *endPos;
 
+        constexpr DescriptionWrapper(): str("") {
+            endPos = str;
+        }
+        constexpr DescriptionWrapper(const char* _str, const char* _endPos):
+        str(_str), endPos(_endPos) {}
+
+        constexpr DescriptionWrapper(const char* _str, std::size_t n):
+        str(_str), endPos(_str + n) {}
+
         [[nodiscard]] constexpr std::size_t length() const {
             return static_cast<std::size_t>(endPos - str);
         }
@@ -41,11 +51,21 @@ namespace args {
         UnsignedInteger = 2,
         AnyInteger = 3,
         FloatingPoint = 4,
+        AnyArithmetic = 7,
         CaseSensitiveString = 8,
         CaseInsensitiveString = 16,
         AnyString = 24,
         All = 31,
     };
+
+    using VariantElement = std::variant<
+            std::monostate,         // No value yet
+            std::intmax_t,          // Signed integer
+            std::uintmax_t,         // Unsigned integer
+            long double,            // Floating point
+            std::string,            // String
+            ci_string               // String, but case-insensitive
+    >;
 
     constexpr inline auto &operator|=(AlternativeType &L, AlternativeType R) {
         unsigned value = (unsigned) L | (unsigned) R;
@@ -69,6 +89,10 @@ namespace args {
         return L;
     }
 
+    constexpr inline int maskSize(AlternativeType A) {
+        return std::popcount((unsigned)(A));
+    }
+
     constexpr inline bool isNone(AlternativeType A) {
         return A == AlternativeType::None;
     }
@@ -81,7 +105,7 @@ namespace args {
             return ResultType{"None"};
         }
 
-        auto res = CharTraitsToString<T>{};
+        auto res = ResultType{};
         res.reserve(128);
 
         auto append = [&](const char* content) {
@@ -108,15 +132,6 @@ namespace args {
         }
         return res;
     }
-
-    using VariantElement = std::variant<
-            std::monostate,         // None yet
-            std::intmax_t,          // Signed integer
-            std::uintmax_t,         // Unsigned integer
-            long double,            // Floating point
-            std::string,            // String
-            ci_string               // String, but case-insensitive
-    >;
 
     template<class T_>
     inline constexpr auto getElementType() {
@@ -166,9 +181,9 @@ namespace args {
         }
     };
 
-    template<class T>
+    template<AlternativeType specified = AlternativeType::None, class T>
     inline auto toElementValue(const T &value) {
-        constexpr auto tv = getElementType<T>();
+        constexpr auto tv = isNone(specified) ? getElementType<T>() : specified;
 
         if constexpr (tv == AlternativeType::None) {
             return std::monostate{};
@@ -179,9 +194,9 @@ namespace args {
         } else if constexpr (tv == AlternativeType::FloatingPoint) {
             return (long double)value;
         } else if constexpr (tv == AlternativeType::CaseInsensitiveString) {
-            return value;
+            return utils::ci_string{utils::toCString(value)};
         } else if constexpr (tv == AlternativeType::CaseSensitiveString) {
-            return std::string{toCString(value)};
+            return std::string{utils::toCString(value)};
         } else {
             static_assert(AlwaysFalse<T>::value,
                           "Only integers, floating-points, and strings "
@@ -193,57 +208,80 @@ namespace args {
         return std::monostate{};
     }
 
+    template <class T>
+    inline void assignElementValue(AlternativeType which, VariantElement& dest, const T& value) {
+        switch (which) {
+            case AlternativeType::None:
+                dest = toElementValue<AlternativeType::None>(value);
+                break;
+            case AlternativeType::SignedInteger:
+                dest = toElementValue<AlternativeType::SignedInteger>(value);
+                break;
+            case AlternativeType::UnsignedInteger:
+                dest = toElementValue<AlternativeType::UnsignedInteger>(value);
+                break;
+            case AlternativeType::CaseInsensitiveString:
+                dest = toElementValue<AlternativeType::CaseInsensitiveString>(value);
+                break;
+            case AlternativeType::CaseSensitiveString:
+                dest = toElementValue<AlternativeType::CaseSensitiveString>(value);
+                break;
+            default:
+                throw std::invalid_argument("Alternative type mask should contain exactly 1 type!");
+        }
+    }
+
     template<class U, SameAsOneOfWithoutCVRef<VariantElement> T>
     inline U fromElementValue(const T &value) {
         // std::monostate: always throws an exception
         if constexpr (std::is_same_v<T, std::monostate>) {
             throw BadArgumentVariantAccess("Visits std::monostate (i.e. no value yet)");
         }
-            // Converts from an arithmetic value
+        // Converts from an arithmetic value
         else if constexpr (std::is_arithmetic_v<T>) {
             if constexpr (TemplateInstanceOf<U, std::basic_string>) {
                 // String <- Arithmetic, where String must be an instance of std::basic_string
                 // (in other words, const char* is not supported)
-                return ::toString<U>(value);
+                return utils::toString<U>(value);
             } else if constexpr (std::is_arithmetic_v<U>) {
                 // Arithmetic <- Arithmetic
                 // Exception may be thrown if underflow or overflow happens
-                return value_safe_arithmetic_cast<U>(value);
+                return utils::value_safe_arithmetic_cast<U>(value);
             } else {
                 // Destination type U is invalid (e.g. const char*)
                 static_assert(AlwaysFalse<U>::value,
                               "U must be either arithmetic, or an instance of std::basic_string");
             }
         }
-            // Converts from a string
+        // Converts from a string
         else if constexpr (StringLike<T>) {
             if constexpr (TemplateInstanceOf<U, std::basic_string>) {
                 // String <- String
-                return string_traits_cast<U>(value);
+                return utils::string_traits_cast<U>(value);
             } else if constexpr (std::is_arithmetic_v<U>) {
-                // Arithmetic <- String (Exception may be throw if fails
-                return ::fromString<U>(value);
+                // Arithmetic <- String (Exception may be throw if fails)
+                return utils::fromStringStrict<U>(value);
             } else {
                 // Destination type U is invalid (e.g. const char*)
                 static_assert(AlwaysFalse<U>::value,
                               "U must be either arithmetic, or an instance of std::basic_string");
             }
         }
-            // Unsupported T
+        // Unsupported T
         else {
             static_assert(AlwaysFalse<T>::value, "Unimplemented or invalid type T as input");
         }
     }
 
     template<class U, SameAsOneOf<VariantElement> T>
-    inline auto fromElementValueOr(const T &value, const U &alternative) try {
+    inline auto fromElementValueOr(const T &value, const U &alternative) noexcept try {
         return fromElementValue<U>(value);
     } catch (...) {
         return alternative;
     }
 
     template<SameAsOneOf<VariantElement> T, SameAsOneOf<VariantElement> U>
-    inline auto compareElementValues(const T &A, const U &B) -> std::partial_ordering {
+    inline auto compareElementValues(const T &A, const U &B) noexcept -> std::partial_ordering {
         // First check std::monostate (i.e. no value)
         // No-value is regarded the lowest
         constexpr auto mT = (int) std::is_same_v<T, std::monostate>;
@@ -251,8 +289,8 @@ namespace args {
         if constexpr (mT || mU) {
             return (1 - mT) <=> (1 - mU);
         }
-            // Then check string, two strings are compared as case-insensitive of either is ci_string
-            // Otherwise, compare case-sensitively
+        // Then check string, two strings are compared as case-insensitive of either is ci_string
+        // Otherwise, compare case-sensitively
         else if constexpr (StringLike<T> && StringLike<U>) {
             if constexpr (std::same_as<T, ci_string> || std::same_as<U, ci_string>) {
                 return cstr::ci_strcmp(std::ranges::cdata(A), std::ranges::cdata(B));
@@ -260,8 +298,8 @@ namespace args {
                 return A <=> B;
             }
         }
-            // Then for arithmetic types, two numbers are compared by their values
-            //  with (possibly) implicit conversion
+        // Then for arithmetic types, two numbers are compared by their values
+        //  with (possibly) implicit conversion
         else if constexpr (std::is_arithmetic_v<T> && std::is_arithmetic_v<U>) {
             if constexpr (std::is_integral_v<T> && std::is_integral_v<U>) {
                 // If both are integers, compares with the value-safe functions
@@ -272,24 +310,25 @@ namespace args {
                 return A <=> B;
             }
         }
-            // Then for arithmetic-string mixed comparison
-            // Transforms the string to the arithmetic type. an exception may be thrown for conversion failure
-            // 1. (String, Arithmetic)
-        else if constexpr (StringLike<T>) {
-            return fromString<U>(A) <=> B;
+        // Then for arithmetic-string mixed comparison
+        // Transforms the string to the arithmetic type. If conversion fails, returns unordered
+        else if constexpr (StringLike<T> || StringLike<U>) try {
+            if constexpr (StringLike<T>) {
+                return fromStringStrict<U>(A) <=> B;    // (String, Arithmetic)
+            } else {
+                return A <=> fromStringStrict<T>(B);    // (Arithmetic, String)
+            }
+        } catch (...) {
+            return std::partial_ordering::unordered;    // Conversion fails
         }
-            // 2. (Arithmetic, String)
-        else if constexpr (StringLike<U>) {
-            return A <=> fromString<T>(B);
-        }
-            // Unsupported cases
+        // Unsupported cases
         else {
             static_assert(AlwaysFalse<T>::value, "Unsupported or invalid types");
         }
     }
 
     inline std::partial_ordering compareElements(
-            const VariantElement &A, const VariantElement &B) {
+            const VariantElement &A, const VariantElement &B) noexcept {
         const auto cmp = [](const auto &a, const auto &b) {
             return compareElementValues(a, b);
         };
@@ -305,7 +344,7 @@ namespace args {
             };
 
             auto mask = AlternativeType::None;
-            splitByEither(typesStr, len, ", |", [&](const char *str, std::size_t n) constexpr {
+            utils::cstr::splitByEither(typesStr, len, ", |", [&](const char *str, std::size_t n) constexpr {
                 if (equalsToEither(str, n, "all")) {
                     mask = AlternativeType::All;
                 } else if (equalsToEither(str, n, "i", "d", "int", "signed", "intmax_t", "std::intmax_t")) {
@@ -332,7 +371,7 @@ namespace args {
         }
     }
 
-// Returns a copy of the holding value. Type conversion may be performed.
+    // Returns a copy of the holding value. Type conversion may be performed.
     template<class T_>
     inline auto fromElement(const VariantElement &v) {
         using T = std::remove_cvref_t<T_>;
@@ -435,7 +474,7 @@ namespace args {
         template<class T = std::monostate>
         ArgumentVariant(StringType label,
                         AlternativeType expectsMask,
-                        DescriptionWrapper desc,
+                        DescriptionWrapper desc = DescriptionWrapper{},
                         const T &value = std::monostate{}):
                 _labels({std::move(label)}),
                 _expectsMask(expectsMask),
@@ -446,7 +485,7 @@ namespace args {
         template<class T = std::monostate>
         ArgumentVariant(std::initializer_list<StringType> labels,
                         AlternativeType expectsMask,
-                        DescriptionWrapper desc,
+                        DescriptionWrapper desc = DescriptionWrapper{},
                         const T &value = std::monostate{}):
                 _labels(labels),
                 _expectsMask(expectsMask),
@@ -459,11 +498,43 @@ namespace args {
 
         template<class T>
         auto &operator=(const T &value) {
-            auto tv = getElementType<T>();
-            if (!isNone(tv) && isNone(_expectsMask & tv)) {
-                throw std::invalid_argument("Bad assignment to ArgumentVariant: unexpected type");
+            constexpr auto tv = getElementType<T>();
+
+            // (1) std::monostate
+            if constexpr (tv == AlternativeType::None) {
+                _value = std::monostate{};
             }
-            _value = toElementValue(value);
+            // (2) Assigns from an arithmetic type: The type must match the expectsMask
+            else if constexpr (!isNone(tv & AlternativeType::AnyArithmetic)) {
+                if (isNone(_expectsMask & tv)) {
+                    throw std::invalid_argument("Bad assignment to ArgumentVariant: unexpected arithmetic type");
+                }
+                _value = toElementValue(value);
+            }
+            // (3) Assigns from a string:
+            else if constexpr (!isNone(tv & AlternativeType::AnyString)) {
+                // (3-1) Exactly matches expectsMask
+                if (!isNone(_expectsMask & tv)) {
+                    _value = toElementValue(value);
+                }
+                // (3-2) Converts to string of the other type
+                else if (!isNone(_expectsMask & AlternativeType::AnyString)) {
+                    assignElementValue(_expectsMask & AlternativeType::AnyString, _value, value);
+                }
+                // (3-3) Converts to the unique arithmetic type specified by expectsMask
+                else if (maskSize(_expectsMask & AlternativeType::AnyArithmetic) == 1) {
+                    assignElementValue(_expectsMask & AlternativeType::AnyArithmetic, _value, value);
+                    _value = toElementValue<_expectsMask & AlternativeType::AnyArithmetic>(value);
+                }
+                // (3-4) An exception is thrown because of ambiguous conversion candidates:
+                else {
+                    throw std::invalid_argument("Bad assignment to ArgumentVariant: unexpected string type");
+                }
+            }
+            else {
+                static_assert(AlwaysFalse<T>::value, "Unsupported or invalid type");
+            }
+
             return *this;
         }
 
@@ -576,9 +647,13 @@ namespace args {
             }
         }
 
-        auto get(const StringLike auto &label) const -> MapValue {
+        auto& get(const StringLike auto &label) {
             auto it = _variants.find(label);
-            return it == _variants.end() ? nullptr : it->second;
+            return it == _variants.end() ? nullptr : *(it->second);
+        }
+
+        const auto& get(const StringLike auto& label) const {
+            return const_cast<ArgumentVariantSet*>(this)->get(label);
         }
 
         auto operator[](const StringLike auto &label) const {
@@ -611,6 +686,14 @@ namespace args {
         auto &operator()(const StringLike auto &label, T &dest, const T &alternative) const {
             dest = getValueOr(label, alternative);
             return dest;
+        }
+
+        auto all() {
+            return _variants | std::views::transform([](auto& kv) { return *(kv.second); });
+        }
+
+        auto all() const {
+            return _variants | std::views::transform([](const auto& kv) { return *(kv.second); });
         }
 
         template <class TraitsOrStr> friend auto toString(const ArgumentVariantSet& vs) {

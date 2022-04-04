@@ -444,33 +444,75 @@ namespace utils {
 
     // Transforms to std::string, specialization to all std::basic_string types including std::string itself
 // Returns a const-reference if the argument is a left-value, copied/moved value otherwise
+
+    /*!
+     * @brief Performs string conversion between two character traits. No change to contents.
+     *
+     * Equivalent to `string_traits_cast<T>(str)`. See string_traits_cast for details.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param str Input string
+     * @return Output string, either as reference or as value
+     */
     template <class T = std::string, TemplateInstanceOf<std::basic_string> From>
     inline decltype(auto) toString(From&& str) noexcept {
         return string_traits_cast<T>(std::forward<From>(str));
     }
 
-// Transforms to std::string
+    /*!
+     * @brief Transforms the C-style string to a std::basic_string instance.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param str Input string
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string>
     inline auto toString(const char* str) noexcept {
         return CharTraitsToString<T>{str};
     }
 
-// Transforms to std::string
+    /*!
+     * @brief Transforms a single character of type char to a std::basic_string instance
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param c Input string
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string>
     inline auto toString(char c) noexcept {
         return CharTraitsToString<T>{1, c};
     }
 
-// Transforms integer type to std::string
+    /*!
+     * @brief Transforms an integer to a std::basic_string instance.
+     *
+     * Similar to std::stoi, but no exception will be thrown.
+     * For conversion failure, a special error message will be returned.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param value Input value to be transformed
+     * @param base Base of the value's string representation, valid in 2 ... 36
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string, std::integral IntType>
-    requires (!SameAsOneOf<IntType, bool, signed char, unsigned char>)
+    requires (!CharacterType<IntType>)
     inline auto toString(IntType value, int base = 10) noexcept {
         static char buffer[32];
         auto res = std::to_chars(buffer, buffer + sizeof(buffer), value, base);
         return res.ec == std::errc{} ? CharTraitsToString<T>(buffer, res.ptr) : "(ERROR: std::errc::value_to_large)";
     }
 
-// Transforms floating point type to std::string
+    /*!
+     * @brief Transforms a floating point value to a std::basic_string instance
+     *
+     * Similar to std::stoi, but no exception will be thrown.
+     * For conversion failure, a special error message will be returned.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param value Input value to be transformed
+     * @param fmt Format flag for the string (see: https://en.cppreference.com/w/cpp/utility/to_chars)
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string, std::floating_point FloatType>
     inline auto toString(FloatType value,
                          std::chars_format fmt = std::chars_format::general) noexcept {
@@ -479,7 +521,17 @@ namespace utils {
         return res.ec == std::errc{} ? CharTraitsToString<T>{buffer, res.ptr} : "(ERROR: std::errc::value_to_large)";
     }
 
-// Transforms floating point type to std::string
+    /*!
+     * @brief Transforms a floating point value to a std::basic_string instance with given format and precision
+     *
+     * See toString(value, fmt) for details.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param value Input value to be transformed
+     * @param fmt Format flag for the string (see: https://en.cppreference.com/w/cpp/utility/to_chars)
+     * @param precision The precision of string representation
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string, std::floating_point FloatType>
     inline auto toString(FloatType value, std::chars_format fmt, int precision) noexcept {
         static char buffer[64];
@@ -487,7 +539,24 @@ namespace utils {
         return res.ec == std::errc{} ? CharTraitsToString<T>{buffer, res.ptr} : "(ERROR: std::errc::value_to_large)";
     }
 
-// Transforms floating point type to std::string
+    /*!
+     * @brief Transforms a floating point value to a std::basic_string instance with given format and precision
+     *
+     * See toString(value, fmt) and toString(value, fmt, precision) for details.
+     *
+     * The format flag can be one of:
+     *   - `a` for `std::chars_format::hex`
+     *   - `e` for `std::chars_format::scientific`
+     *   - `f` for `std::chars_format::fixed`
+     *   - `g` for `std::chars_format::general`
+     *   - Others are regarded as error
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param value Input value to be transformed
+     * @param fmt Format flag for the string (see above)
+     * @param precision Optional argument, the precision of string representation
+     * @return Output string as instance of std::basic_string
+     */
     template <class T = std::string, std::floating_point FloatType, std::convertible_to<int>... Args>
     requires (sizeof...(Args) <= 1)
     inline auto toString(FloatType value, char fmt, Args... precision) noexcept {
@@ -501,7 +570,22 @@ namespace utils {
         }
     }
 
-    // Joins all the values with given delimiter
+    /*!
+     * @brief Joins all the values as a std::basic_string instance.
+     *
+     * All the elements should satisfy the concept HasToString, i.e. has a `toString(x)` function.
+     *
+     * The result is generated as the form: head, value1, delim, value2, delim ... valueN tail.
+     *
+     * e.g. values = {1, 2, 3}, delim = `" - "`, head = `"{"`, tail = `"}"`, then the result is `{1 - 2 - 3}`.
+     *
+     * @tparam T Either the destination std::basic_string instance or the character traits type
+     * @param values A range of values, the value type should satisfy HasToString
+     * @param delim Delimiter element
+     * @param head Head element
+     * @param tail Tail element
+     * @return The joined string as an instance of std::basic_string
+     */
     template <class T = std::string,
             std::ranges::range Range,
             HasToString Delim = const char*,

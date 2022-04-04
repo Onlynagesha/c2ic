@@ -182,7 +182,9 @@ namespace utils {
     /*!
      * @brief Concept on whether Inst is an instance of template type Tp<class...>
      *
-     * Equivalent to isTemplateInstanceOf<Inst, Tp>
+     * const/volatile specifiers and references are ignored for Inst.
+     *
+     * Equivalent to isTemplateInstanceOf<std::remove_cvref_t<Inst>, Tp>
      *
      * @tparam Inst
      * @tparam Tp
