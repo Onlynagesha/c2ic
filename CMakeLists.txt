@@ -11,5 +11,5 @@ endif()
 include_directories(argparse)
 #add_executable(Graph main.cpp argparse/argparse.hpp
 #        global.h Logger.h imm.cpp imm.h immbasic.h PRRGraph.cpp PRRGraph.h
-#        Timer.h args.h args.cpp cecstr.h immbasic.cpp args-v2.h)
-add_executable(Graph playground.cpp)
+#        Timer.h args.h args.cpp cstr.h immbasic.cpp args-v2.h)
+add_executable(Graph playground.cpp playground.cpp utils/assert.h utils/typeinfo.h utils/type_traits.h utils/numeric.h utils/random.h utils/cstring.h utils/string.h utils/format.h utils/misc.h utils/all.h)
