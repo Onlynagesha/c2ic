@@ -182,6 +182,40 @@ namespace utils::cstr {
     }
 
     /*!
+     * @brief The function object type that wraps constexpr C-style string comparison.
+     */
+    struct strcmp_t {
+        /*!
+         * @brief Compares two C-style strings A and B with constexpr support.
+         *
+         * Both strcmp (2 arguments) and strncmp (3 arguments, plus a length limit) are supported.
+         *
+         * @param A
+         * @param B
+         * @param n The maximal number of characters to compare (default: +inf)
+         * @return 3-way comparison result as std::strong_ordering
+         */
+        constexpr auto operator ()(const char* A, const char* B,
+                                   std::size_t n = std::numeric_limits<std::size_t>::max()) const {
+            for (; *A != '\0' && *B != '\0' && n != 0; ++A, ++B, --n) {
+                int a = (unsigned char)(*A);
+                int b = (unsigned char)(*B);
+                if (a != b) {
+                    return a <=> b;
+                }
+            }
+            return n == 0 ? std::strong_ordering::equal : (unsigned)(*A) <=> (unsigned)(*B);
+        }
+    };
+
+    /*!
+     * @brief The function object instance of constexpr C-style string comparison.
+     *
+     * See strcmp_t::operator() for details.
+     */
+    inline constexpr strcmp_t strcmp;
+
+    /*!
      * @brief The function object that wraps constexpr C-style string comparison
      */
     struct ci_less {

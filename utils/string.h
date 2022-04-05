@@ -62,20 +62,6 @@ namespace utils {
     || CharacterType<std::remove_cvref_t<std::remove_pointer_t<std::decay_t<T>>>>;
 
     /*!
-     * @brief Concept on whether type T has a `toString()` free function returning an instance of std::basic_string.
-     *
-     * the `toString()` function can be:
-     *   - `utils::toString()` (see below)
-     *   - `toString()` from other namespaces, found by argument-dependent lookup (ADL)
-     *
-     * @tparam T
-     */
-    template <class T>
-    concept HasToString = requires(std::decay_t<T> x) {
-        { toString(x) } -> TemplateInstanceOf<std::basic_string>;
-    };
-
-    /*!
      * @brief Transforms a character traits type to the instance of std::basic_string template
      *
      * Behaves like the pseudocode below:
@@ -333,7 +319,7 @@ namespace utils {
 
         auto [ptr, ec] = std::from_chars(p, p + n, value, base);
         if (ec == std::errc::invalid_argument) {
-            throw std::invalid_argument("Invalid argument during conversion from string to integer");
+            throw std::invalid_argument("Other argument during conversion from string to integer");
         } else if (ec == std::errc::result_out_of_range) {
             throw std::out_of_range("Result out of range during conversion from string to integer");
         } else {
@@ -376,7 +362,7 @@ namespace utils {
 
         auto [ptr, ec] = std::from_chars(p, p + n, value, format);
         if (ec == std::errc::invalid_argument) {
-            throw std::invalid_argument("Invalid argument during conversion from string to floating point");
+            throw std::invalid_argument("Other argument during conversion from string to floating point");
         } else if (ec == std::errc::result_out_of_range) {
             throw std::out_of_range("Result out of range during conversion from string to floating point");
         } else {
@@ -414,7 +400,7 @@ namespace utils {
             case 'e': return fromString<T>(str, pos, std::chars_format::scientific);
             case 'f': return fromString<T>(str, pos, std::chars_format::fixed);
             case 'g': return fromString<T>(str, pos, std::chars_format::general);
-            default:  throw std::invalid_argument("Invalid format specifier");
+            default:  throw std::invalid_argument("Other format specifier");
         }
     }
 
@@ -569,6 +555,20 @@ namespace utils {
             default:  return "(ERROR: unspecified format '"s + fmt + "')";
         }
     }
+
+    /*!
+     * @brief Concept on whether type T has a `toString()` free function returning an instance of std::basic_string.
+     *
+     * the `toString()` function can be:
+     *   - `utils::toString()` (see below)
+     *   - `toString()` from other namespaces, found by argument-dependent lookup (ADL)
+     *
+     * @tparam T
+     */
+    template <class T>
+    concept HasToString = requires(std::decay_t<T> x) {
+        { toString(x) } -> TemplateInstanceOf<std::basic_string>;
+    };
 
     /*!
      * @brief Joins all the values as a std::basic_string instance.
