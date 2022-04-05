@@ -9,25 +9,25 @@
 #include <variant>
 
 namespace args {
-    class BadArgumentVariantAccess : std::bad_variant_access {
-        const char *_what = "BadArgumentVariantAccess";
+    class BadVariantAccess : std::bad_variant_access {
+        const char *_what = "BadVariantAccess";
 
     public:
-        BadArgumentVariantAccess() = default;
+        BadVariantAccess() = default;
 
-        explicit BadArgumentVariantAccess(const char *info) : std::bad_variant_access(), _what(info) {}
+        explicit BadVariantAccess(const char *info) : std::bad_variant_access(), _what(info) {}
 
         [[nodiscard]] const char *what() const noexcept override {
             return _what;
         }
     };
 
-    class BadArgumentAnyAccess: std::bad_any_cast {
-        const char* _what = "BadArgumentAnyAccess";
+    class BadAnyAccess: std::bad_any_cast {
+        const char* _what = "BadAnyAccess";
 
     public:
-        BadArgumentAnyAccess() = default;
-        explicit BadArgumentAnyAccess(const char* what): _what(what) {}
+        BadAnyAccess() = default;
+        explicit BadAnyAccess(const char* what): _what(what) {}
 
         [[nodiscard]] const char* what() const noexcept override {
             return _what;

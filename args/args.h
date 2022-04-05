@@ -8,6 +8,7 @@
 #include <cassert>
 #include <map>
 #include <set>
+#include "any.h"
 #include "variant.h"
 
 namespace args {
@@ -112,6 +113,9 @@ namespace args {
 
     using ArgSet = BasicArgSet<std::string, BasicVariant<std::string>>;
     using CIArgSet = BasicArgSet<utils::ci_string, BasicVariant<utils::ci_string>>;
+
+    using AnyArgSet = BasicArgSet<std::string, BasicAny<std::string>>;
+    using CIAnyArgSet = BasicArgSet<utils::ci_string, BasicAny<utils::ci_string>>;
 }
 
 #endif //DAWNSEEKER_GRAPH_ARGS_H

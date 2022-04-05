@@ -81,9 +81,9 @@ namespace args {
         return L;
     }
 
-//    constexpr inline int maskSize(AlternativeType A) {
-//        return std::popcount((unsigned)(A));
-//    }
+    constexpr inline int maskSize(AlternativeType A) {
+        return std::popcount((unsigned)(A));
+    }
 
     constexpr inline int maskSizeNoOther(AlternativeType A) {
         return std::popcount((unsigned)(A & AlternativeType::All));
@@ -115,24 +115,34 @@ namespace args {
             res += content;
         };
 
-        if (!isNone(A & AlternativeType::SignedInteger)) {
-            append("Signed integer");
+        if (!isNone(A & AlternativeType::AnyInteger)) {
+            if (maskSize(A & AlternativeType::AnyInteger) == 2) {
+                append("Integer");
+            } else if (!isNone(A & AlternativeType::SignedInteger)) {
+                append("Signed integer");
+            } else {
+                append("Unsigned integer");
+            }
         }
-        if (!isNone(A & AlternativeType::UnsignedInteger)) {
-            append("Unsigned integer");
-        }
+
         if (!isNone(A & AlternativeType::FloatingPoint)) {
             append("Floating point");
         }
-        if (!isNone(A & AlternativeType::CaseSensitiveString)) {
-            append("Case-sensitive string");
+
+        if (!isNone(A & AlternativeType::AnyString)) {
+            if (maskSize(A & AlternativeType::AnyString) == 2) {
+                append("String");
+            } else if (!isNone(A & AlternativeType::CaseSensitiveString)) {
+                append("Case-sensitive string");
+            } else {
+                append("Case-insensitive string");
+            }
         }
-        if (!isNone(A & AlternativeType::CaseInsensitiveString)) {
-            append("Case-insensitive string");
-        }
+
         if (!isNone(A & AlternativeType::Other)) {
             append("Other");
         }
+
         return res;
     }
 
@@ -158,7 +168,7 @@ namespace args {
                     mask |= AlternativeType::CaseSensitiveString;
                 } else if (equalsToEither(str, n, "cis", "ci_str", "cistr", "ci_string", "cistring")) {
                     mask |= AlternativeType::CaseInsensitiveString;
-                } else if (equalsToEither(str, n, "other", "others")) {
+                } else if (equalsToEither(str, n, "other", "others", "?")) {
                     mask |= AlternativeType::Other;
                 }
             });
@@ -210,6 +220,21 @@ namespace args {
 
         bool hasLabel(const utils::StringLike auto& str) const {
             return std::ranges::find(_labels, utils::toCString(str)) != _labels.end();
+        }
+
+        template <class T = std::string>
+        friend auto toString(const BasicInfo& v) {
+            using ResultType = utils::CharTraitsToString<T>;
+
+            auto quotedLabels = v.labels() | std::views::transform([](const auto& label) {
+                return ResultType{"\""} + utils::toCString(label) + "\"";
+            });
+            auto res = utils::join<T>(quotedLabels, ", ") + ":\n";
+            // 20 characters ahead
+            res.append("    Description:    " + utils::toString<T>(v.description()) + "\n");
+            res.append("    Expected types: " + toString<T>(v.mask()));
+
+            return res;
         }
     };
 }

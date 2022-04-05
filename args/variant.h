@@ -9,18 +9,18 @@
 #include "element.h"
 
 namespace args {
-    template<utils::TemplateInstanceOf<std::basic_string> StringType = std::string>
-    class BasicVariant: public BasicInfo<StringType> {
+    template<utils::TemplateInstanceOf<std::basic_string> LabelType = std::string>
+    class BasicVariant: public BasicInfo<LabelType> {
     private:
         VariantElement  _value;
 
     public:
         template<class T = std::monostate>
-        BasicVariant(StringType label, // NOLINT(google-explicit-constructor)
+        BasicVariant(LabelType label, // NOLINT(google-explicit-constructor)
                      AlternativeType expectsMask = AlternativeType::All,
                      DescriptionWrapper desc = DescriptionWrapper{},
                      const T &value = std::monostate{}):
-                     BasicInfo<StringType>(label, expectsMask & AlternativeType::All, desc)
+                     BasicInfo<LabelType>(label, expectsMask & AlternativeType::All, desc)
         {
             if (maskSizeNoOther(expectsMask) == 0) {
                 throw std::invalid_argument("Empty mask is not allowed");
@@ -29,11 +29,11 @@ namespace args {
         }
 
         template<class T = std::monostate>
-        BasicVariant(std::initializer_list<StringType> labels,
+        BasicVariant(std::initializer_list<LabelType> labels,
                      AlternativeType expectsMask =AlternativeType::All,
                      DescriptionWrapper desc = DescriptionWrapper{},
                      const T &value = std::monostate{}):
-                     BasicInfo<StringType>(labels, expectsMask & AlternativeType::All, desc)
+                     BasicInfo<LabelType>(labels, expectsMask & AlternativeType::All, desc)
         {
             if (maskSizeNoOther(expectsMask) == 0) {
                 throw std::invalid_argument("Empty mask is not allowed");
@@ -115,16 +115,8 @@ namespace args {
 
         template <class T = std::string>
         friend auto toString(const BasicVariant& v) {
-            using ResultType = utils::CharTraitsToString<T>;
-
-            auto quotedLabels = v.labels() | std::views::transform([](const auto& label) {
-                return ResultType{"\""} + utils::toCString(label) + "\"";
-            });
-            auto res = utils::join<T>(quotedLabels, ", ") + ":\n";
-
-            res.append("    Description:    " + utils::toString<T>(v.description()) + "\n");
-            res.append("    Expected types: " + toString<T>(v.mask()) + "\n");
-            res.append("    Current value:  " + toString<T>(v._value) + " (stored as " + v.typeName() + ")");
+            auto res = toString<T>(static_cast<const BasicInfo<LabelType>&>(v));
+            res.append("\n    Current value:  " + toString<T>(v._value) + " (stored as " + v.typeName() + ")");
 
             return res;
         }

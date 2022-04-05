@@ -11,81 +11,60 @@
 // todo: NOT FINISHED YET. DO NOT USE
 
 namespace args {
-    namespace tags {
-        struct FromValue {};
-
-        inline FromValue fromValue;
-    }
-
-    template <utils::TemplateInstanceOf<std::basic_string> StringType>
-    class ArgumentVariantOrAny {
-    public:
-        using VariantType = BasicVariant<StringType>;
-
+    template <utils::TemplateInstanceOf<std::basic_string> LabelType>
+    class BasicAny: public BasicInfo<LabelType> {
     private:
-        std::any        _content;
+        std::variant<VariantElement, std::any> _content;
 
     public:
-        ArgumentVariantOrAny() = default;
-
-        ArgumentVariantOrAny(VariantType value) { // NOLINT(google-explicit-constructor)
-            _content = std::move(value);
-        }
-
-        template <class T>
-        ArgumentVariantOrAny(tags::FromValue, T value) {
-            static_assert(isInvalid(getElementType<T>()),
-                          "Assigning an arg. any from a variable compatible to BasicVariant is disallowed");
-
-            _content = std::move(value);
+        template<class T = std::monostate>
+        BasicAny(const char* label, // NOLINT(google-explicit-constructor)
+                 AlternativeType expectsMask = AlternativeType::AllAndOther,
+                 DescriptionWrapper desc = DescriptionWrapper{},
+                 const T &value = std::monostate{}):
+                 BasicInfo<LabelType>(label, expectsMask, desc) {
+            operator =(std::move(value));
         }
 
         template<class T = std::monostate>
-        ArgumentVariantOrAny(const char* label, // NOLINT(google-explicit-constructor)
-                             AlternativeType expectsMask = AlternativeType::All,
-                             DescriptionWrapper desc = DescriptionWrapper{},
-                             const T &value = std::monostate{}) {
-            _content = VariantType(label, expectsMask, desc, value);
-        }
-
-        template<class T = std::monostate>
-        ArgumentVariantOrAny(std::initializer_list<StringType> labels,
-                             AlternativeType expectsMask = AlternativeType::All,
-                             DescriptionWrapper desc = DescriptionWrapper{},
-                             const T &value = std::monostate{}) {
-            _content = VariantType(labels, expectsMask, desc, value);
+        BasicAny(std::initializer_list<LabelType> labels,
+                 AlternativeType expectsMask = AlternativeType::AllAndOther,
+                 DescriptionWrapper desc = DescriptionWrapper{},
+                 const T &value = std::monostate{}):
+                 BasicInfo<LabelType>(labels, expectsMask, desc) {
+            operator =(std::move(value));
         }
 
         [[nodiscard]] bool holdsVariant() const {
-            return _content.type() == typeid(VariantType);
+            return std::holds_alternative<VariantElement>(_content);
+        }
+
+        [[nodiscard]] bool holdsOther() const {
+            return std::holds_alternative<std::any>(_content);
         }
 
         template <class T>
-        ArgumentVariantOrAny& operator = (T value) {
+        BasicAny& operator = (T value) {
             constexpr auto tv = getElementType<T>();
-            if constexpr (isInvalid(tv)) {
-                _content = std::move(value);
-            } else if (holdsVariant()) {
-                std::any_cast<VariantType&>(_content) = std::move(value);
+            if constexpr (isOther(tv)) {
+                if (!isNone(this->mask() & tv)) {
+                    _content = std::make_any<T>(std::move(value));
+                } else {
+                    throw BadAnyAccess("Non-variant types are refused by the type mask");
+                }
             } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to assign a value to a variant is invalid";
-                throw BadArgumentAnyAccess(what);
+                _content = toElement(this->mask(), std::move(value));
             }
             return *this;
         }
 
         template<class T> auto get() const {
-            constexpr auto tv = getElementType<T>();
-            if constexpr (isInvalid(tv)) {
-                return std::any_cast<const T&>(_content);
-            } else if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).template get<T>();
-            } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get a value from a variant is invalid";
-                throw BadArgumentAnyAccess(what);
+            if constexpr (getElementType<T>() != AlternativeType::Other) {
+                if (holdsVariant()) {
+                    return fromElement<T>(std::get<VariantElement>(_content));
+                }
             }
+            return std::any_cast<T>(std::get<std::any>(_content));
         }
 
         template <class T> auto getOr(const T& alternative) const try {
@@ -95,12 +74,17 @@ namespace args {
         }
 
         template <class T> auto compare(const T& rhs) const -> std::partial_ordering {
-            if (_content.type() == typeid(VariantType)) {
-                return std::any_cast<const VariantType&>(_content).compare(rhs);
+            if constexpr (getElementType<T>() != AlternativeType::Other) {
+                if (holdsVariant()) {
+                    return std::visit([&](const auto& lhs) {
+                        return compareElementValues(lhs, rhs);
+                    }, std::get<VariantElement>(_content));
+                } else {
+                    throw BadAnyAccess("Comparison fails because current stored is not a variant");
+                }
             } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so comparison is not allowed";
-                throw BadArgumentAnyAccess(what);
+                static_assert(utils::AlwaysFalse<T>::value,
+                        "Only variant-compatible types can be taken in comparison");
             }
         }
 
@@ -109,90 +93,49 @@ namespace args {
         }
 
         template <class T> auto& getRef() {
-            constexpr auto tv = getElementType<T>();
-            if constexpr (isInvalid(tv)) {
-                return std::any_cast<T&>(_content);
-            } else if (holdsVariant()) {
-                return std::any_cast<VariantType&>(_content).template getRef<T>();
-            } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get a reference is invalid";
-                throw BadArgumentAnyAccess(what);
+            if constexpr (getElementType<T>() != AlternativeType::None) {
+                if (holdsVariant()) {
+                    return refFromElement<T>(std::get<VariantElement>(_content));
+                }
             }
+            return std::any_cast<T&>(std::get<std::any>(_content));
         }
 
         template <class T> const auto& getRef() const {
-            return const_cast<ArgumentVariantOrAny*>(this)->getRef<T>();
-        }
-
-        bool matches(const utils::StringLike auto& label) const {
-            if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).matches(label);
-            } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to check a label is invalid";
-                throw BadArgumentAnyAccess(what);
-            }
-        }
-
-        [[nodiscard]] decltype(auto) labels() const {
-            if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).labels();
-            } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get the label list is invalid";
-                throw BadArgumentAnyAccess(what);
-            }
-        }
-
-        [[nodiscard]] decltype(auto) description() const {
-            if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).description();
-            } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get the description is invalid";
-                throw BadArgumentAnyAccess(what);
-            }
+            return const_cast<BasicAny*>(this)->getRef<T>();
         }
 
         [[nodiscard]] auto type() const {
             if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).type();
+                return getElementType(std::get<VariantElement>(_content));
             } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get the type flag is invalid";
-                throw BadArgumentAnyAccess(what);
+                return AlternativeType::Other;
             }
         }
 
         [[nodiscard]] decltype(auto) typeName() const {
             if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).typeName();
+                return elementTypeName(std::get<VariantElement>(_content));
             } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get the type name is invalid";
-                throw BadArgumentAnyAccess(what);
+                return std::get<std::any>(_content).type().name();
             }
         }
 
         template<utils::StringLike T = std::string>
-        [[nodiscard]] auto valueToString() const {
+        [[nodiscard]] auto valueToString() const -> utils::CharTraitsToString<T> {
             if (holdsVariant()) {
-                return std::any_cast<const VariantType&>(_content).template valueToString<T>();
+                return toString(std::get<VariantElement>(_content));
             } else {
-                constexpr auto what = "The any type does not hold a variant, "
-                                      "so attempting to get the value as string is invalid";
-                throw BadArgumentAnyAccess(what);
+                return "(Not accessible to std::any inside)";
             }
         }
 
         template<utils::StringLike T = std::string>
-        friend auto toString(const ArgumentVariantOrAny& value) {
-            if (value.holdsVariant()) {
-                return toString<T>(std::any_cast<const VariantType&>(value._content));
-            } else {
-                return utils::CharTraitsToString<T>{"(Value of other types)"};
-            }
+        friend auto toString(const BasicAny& v) {
+            auto res = toString<T>(static_cast<const BasicInfo<LabelType>&>(v));
+            res.append("\n    Current value:  " + v.valueToString() + " (stored as " + v.typeName() + ")");
+
+            return res;
         }
     };
 }

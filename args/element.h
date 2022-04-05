@@ -202,7 +202,7 @@ namespace args {
     inline U fromElementValue(const T &value) {
         // std::monostate: always throws an exception
         if constexpr (std::is_same_v<T, std::monostate>) {
-            throw BadArgumentVariantAccess("Visits std::monostate (i.e. no value yet)");
+            throw BadVariantAccess("Visits std::monostate (i.e. no value yet)");
         }
             // Converts from an arithmetic value
         else if constexpr (std::is_arithmetic_v<T>) {
