@@ -123,11 +123,11 @@ namespace args {
 
         // (1) Exactly matches
         if (! isNone(tv & mask)) {
-            return std::monostate{};
+            return value;
         }
         // (2) Matches to any string type
         if (!isNone(mask & AlternativeType::AnyString)) {
-            return helper::toStringElement(value);
+            return helper::toStringElement(mask, value);
         }
         // (3) Try signed integer
         if (!isNone(mask & AlternativeType::SignedInteger)) try {
@@ -150,7 +150,7 @@ namespace args {
 
         // (1) Exactly matches
         if (! isNone(tv & mask)) {
-            return std::monostate{};
+            return helper::toStringElement(mask, value);
         }
         // (2) String of the another type
         constexpr auto otherStrTv = tv ^ AlternativeType::AnyString;
@@ -365,8 +365,6 @@ namespace args {
 
             if constexpr (tv == AlternativeType::None) {
                 return "(No value yet)";
-            } else if constexpr (!isNone(tv & AlternativeType::AnyString)) {
-                return "\"" + fromElementValue<ResultType>(x) + "\"";
             } else {
                 return fromElementValue<ResultType>(x);
             }

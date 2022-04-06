@@ -158,6 +158,42 @@ namespace utils::cstr {
             }
             return n == 0 ? std::strong_ordering::equal : (unsigned)(*A) <=> (unsigned)(*B);
         }
+
+        /*!
+         * @brief Compares two C-style strings A and B case-insensitively, with constexpr support.
+         *
+         * Two ranges of characters are provided: [A, lastA) and [B, lastB)
+         *
+         * @param A
+         * @param lastA End position of string A
+         * @param B
+         * @param lastB End position of string B
+         * @return 3-way comparison result as std::strong_ordering
+         */
+        constexpr auto operator ()(const char* A, const char* lastA,
+                const char* B, const char* lastB) const {
+            for (; A != lastA && B != lastB; ++A, ++B) {
+                int a = cstr::toupper((unsigned char)(*A));
+                int b = cstr::toupper((unsigned char)(*B));
+                if (a != b) {
+                    return a <=> b;
+                }
+            }
+            return (int)(A != lastA) <=> (int)(B != lastB);
+        }
+
+        /*!
+         * @brief Compares two C-style strings A and B case-insensitively, with constexpr support.
+         *
+         * @param A
+         * @param nA Length of string A
+         * @param B
+         * @param nB Length of string B
+         * @return 3-way comparison result as std::strong_ordering
+         */
+        constexpr auto operator ()(const char* A, std::size_t nA, const char* B, std::size_t nB) const {
+            return operator ()(A, A + nA, B, B + nB);
+        }
     };
 
     /*!

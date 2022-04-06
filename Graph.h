@@ -405,7 +405,7 @@ namespace graph {
             }
         }
 
-        // Helper function to add a node.
+        // Helper function to addList a node.
         // If the node has never been added before, mapped index = |V| - 1 after adding.
         // Otherwise, the old node with the same index will be replaced.
         // Returns a pointer to the node added
@@ -640,7 +640,7 @@ namespace graph {
         }
 
         // Adds a directed link.
-        // It's required that both nodes have been added before. Otherwise, fails to add.
+        // It's required that both nodes have been added before. Otherwise, fails to addList.
         // Returns a pointer to the link added if success, otherwise nullptr.
         Link* addLink(Link link) {
             if (!_checkLink(link)) {

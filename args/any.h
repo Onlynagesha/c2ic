@@ -8,29 +8,27 @@
 #include "exception.h"
 #include "variant.h"
 
-// todo: NOT FINISHED YET. DO NOT USE
-
 namespace args {
     template <utils::TemplateInstanceOf<std::basic_string> LabelType>
-    class BasicAny: public BasicInfo<LabelType> {
+    class BasicAny : public BasicInfo<LabelType> {
     private:
         std::variant<VariantElement, std::any> _content;
 
     public:
-        template<class T = std::monostate>
-        BasicAny(const char* label, // NOLINT(google-explicit-constructor)
+        template <class T = std::monostate>
+        BasicAny(LabelType label, // NOLINT(google-explicit-constructor)
                  AlternativeType expectsMask = AlternativeType::AllAndOther,
                  DescriptionWrapper desc = DescriptionWrapper{},
-                 const T &value = std::monostate{}):
-                 BasicInfo<LabelType>(label, expectsMask, desc) {
+                 T value = std::monostate{}):
+                 BasicInfo<LabelType>(std::move(label), expectsMask, desc) {
             operator =(std::move(value));
         }
 
-        template<class T = std::monostate>
+        template <class T = std::monostate>
         BasicAny(std::initializer_list<LabelType> labels,
                  AlternativeType expectsMask = AlternativeType::AllAndOther,
                  DescriptionWrapper desc = DescriptionWrapper{},
-                 const T &value = std::monostate{}):
+                 T value = std::monostate{}):
                  BasicInfo<LabelType>(labels, expectsMask, desc) {
             operator =(std::move(value));
         }
@@ -44,7 +42,7 @@ namespace args {
         }
 
         template <class T>
-        BasicAny& operator = (T value) {
+        BasicAny& operator =(T value) {
             constexpr auto tv = getElementType<T>();
             if constexpr (isOther(tv)) {
                 if (!isNone(this->mask() & tv)) {
@@ -58,7 +56,8 @@ namespace args {
             return *this;
         }
 
-        template<class T> auto get() const {
+        template <class T>
+        auto get() const {
             if constexpr (getElementType<T>() != AlternativeType::Other) {
                 if (holdsVariant()) {
                     return fromElement<T>(std::get<VariantElement>(_content));
@@ -67,13 +66,35 @@ namespace args {
             return std::any_cast<T>(std::get<std::any>(_content));
         }
 
-        template <class T> auto getOr(const T& alternative) const try {
+        template <class T>
+        auto getOr(const T& alternative) const try {
             return get<T>();
         } catch (...) {
             return alternative;
         }
 
-        template <class T> auto compare(const T& rhs) const -> std::partial_ordering {
+        auto i() const {
+            return get<std::intmax_t>();
+        }
+
+        auto u() const {
+            return get<std::uintmax_t>();
+        }
+
+        auto f() const {
+            return get<long double>();
+        }
+
+        auto s() const {
+            return get<std::string>();
+        }
+
+        auto cis() const {
+            return get<utils::ci_string>();
+        }
+
+        template <class T>
+        auto compare(const T& rhs) const -> std::partial_ordering {
             if constexpr (getElementType<T>() != AlternativeType::Other) {
                 if (holdsVariant()) {
                     return std::visit([&](const auto& lhs) {
@@ -84,15 +105,17 @@ namespace args {
                 }
             } else {
                 static_assert(utils::AlwaysFalse<T>::value,
-                        "Only variant-compatible types can be taken in comparison");
+                              "Only variant-compatible types can be taken in comparison");
             }
         }
 
-        template <class T> auto operator <=> (const T& rhs) const -> std::partial_ordering {
+        template <class T>
+        auto operator <=>(const T& rhs) const -> std::partial_ordering {
             return compare(rhs);
         }
 
-        template <class T> auto& getRef() {
+        template <class T>
+        auto& getRef() {
             if constexpr (getElementType<T>() != AlternativeType::None) {
                 if (holdsVariant()) {
                     return refFromElement<T>(std::get<VariantElement>(_content));
@@ -101,7 +124,8 @@ namespace args {
             return std::any_cast<T&>(std::get<std::any>(_content));
         }
 
-        template <class T> const auto& getRef() const {
+        template <class T>
+        const auto& getRef() const {
             return const_cast<BasicAny*>(this)->getRef<T>();
         }
 
@@ -121,7 +145,7 @@ namespace args {
             }
         }
 
-        template<utils::StringLike T = std::string>
+        template <utils::StringLike T = std::string>
         [[nodiscard]] auto valueToString() const -> utils::CharTraitsToString<T> {
             if (holdsVariant()) {
                 return toString(std::get<VariantElement>(_content));
@@ -130,7 +154,7 @@ namespace args {
             }
         }
 
-        template<utils::StringLike T = std::string>
+        template <utils::StringLike T = std::string>
         friend auto toString(const BasicAny& v) {
             auto res = toString<T>(static_cast<const BasicInfo<LabelType>&>(v));
             res.append("\n    Current value:  " + v.valueToString() + " (stored as " + v.typeName() + ")");

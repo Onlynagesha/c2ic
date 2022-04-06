@@ -481,7 +481,7 @@ namespace utils {
      * @return Output string as instance of std::basic_string
      */
     template <class T = std::string, std::integral IntType>
-    requires (!CharacterType<IntType>)
+    requires (!CharacterType<IntType> && !std::is_same_v<IntType, bool>)
     inline auto toString(IntType value, int base = 10) noexcept {
         static char buffer[32];
         auto res = std::to_chars(buffer, buffer + sizeof(buffer), value, base);

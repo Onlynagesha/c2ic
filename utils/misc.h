@@ -36,7 +36,13 @@ namespace utils {
     template <class T>
     inline std::size_t totalBytesUsed(const std::vector<T>& vec) {
         // .capacity() is used instead of .size() to calculate actual memory allocated
-        auto res = sizeof(vec) + vec.capacity() * sizeof(T);
+        auto res = sizeof(vec);
+        if constexpr (std::is_same_v<T, bool>) {
+            // For vector<bool>, 1 byte contains 8 elements
+            res += vec.capacity() / 8;
+        } else {
+            res += vec.capacity() * sizeof(T);
+        }
         // For nested vector type like std::vector<std::vector<U>>
         if constexpr(TemplateInstanceOf<T, std::vector>) {
             res -= vec.size() * sizeof(T);

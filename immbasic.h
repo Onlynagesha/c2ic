@@ -36,6 +36,44 @@ enum class LinkState {
                         //  Others (Ca, Cr, Cr-) propagate with probability p as usual
 };
 
+/*
+* Converts a node state to string
+*/
+constexpr const char* toString(NodeState t) {
+    switch (t) {
+        case NodeState::None:
+            return "None";
+        case NodeState::CaPlus:
+            return "Ca+";
+        case NodeState::Ca:
+            return "Ca";
+        case NodeState::Cr:
+            return "Cr";
+        case NodeState::CrMinus:
+            return "Cr-";
+        default:
+            return "(ERROR)";
+    }
+}
+
+/*
+* Converts a link state to string
+*/
+constexpr const char* toString(LinkState t) {
+    switch (t) {
+        case LinkState::NotSampleYet:
+            return "Unsampled";
+        case LinkState::Blocked:
+            return "Blocked";
+        case LinkState::Active:
+            return "Active";
+        case LinkState::Boosted:
+            return "Boosted";
+        default:
+            return "(ERROR)";
+    }
+}
+
 using NodeStatePriorityArray = std::array<int, 5>;
 using NodeStateGainArray = std::array<double, 5>;
 
@@ -175,8 +213,50 @@ inline void setNodeStatePriority(int caPlus, int ca, int cr, int crMinus) {
 
 // Properties of the node priority
 struct NodePriorityProperty {
-    bool monotonic;     // Is monotonicity satisfied
-    bool submodular;    // Is sub-modularity satisfied
+    NodeStatePriorityArray  priority;       // The priority array
+    bool                    monotonic;      // Is monotonicity satisfied
+    bool                    submodular;     // Is sub-modularity satisfied
+
+    static NodePriorityProperty of(const utils::StringLike auto& str) {
+        auto first = utils::toCString(str);
+        auto last = first + utils::stringLength(str);
+
+        int nextPriority = 3;
+        auto arr = NodeStatePriorityArray{};
+        rs::fill(arr, -1);
+
+        auto trySet = [&](NodeState s_, int p) {
+            int s = (int)s_;
+            if (arr[s] != -1) {
+                throw std::invalid_argument("Repeated node state: "s + toString(s_));
+            }
+            arr[s] = p;
+        };
+
+        utils::cstr::splitByEither(first, last, " ,>", [&](const char* token, std::size_t tokenLength) {
+            if (nextPriority < 0) {
+                throw std::invalid_argument("Too much tokens (exactly 4 is required)");
+            }
+
+            if (utils::cstr::ci_strcmp(token, tokenLength, "Ca+", 3) == 0) {
+                trySet(NodeState::CaPlus, nextPriority--);
+            } else if (utils::cstr::ci_strcmp(token, tokenLength, "Ca", 2) == 0) {
+                trySet(NodeState::Ca, nextPriority--);
+            } else if (utils::cstr::ci_strcmp(token, tokenLength, "Cr", 2) == 0) {
+                trySet(NodeState::Cr, nextPriority--);
+            } else if (utils::cstr::ci_strcmp(token, tokenLength, "Cr-", 3) == 0) {
+                trySet(NodeState::CrMinus, nextPriority--);
+            } else {
+                throw std::invalid_argument("Unrecognized token: "s + std::string{token, tokenLength});
+            }
+        });
+
+        if (nextPriority != -1) {
+            throw std::invalid_argument("Too few tokens (exactly 3 is required)");
+        }
+
+        return of(arr);
+    }
 
     static NodePriorityProperty of(int caPlus, int ca, int cr, int crMinus) noexcept{
         return of(setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus));
@@ -197,7 +277,7 @@ struct NodePriorityProperty {
         using enum NodeState;
         static auto greater = std::strong_ordering::greater;
 
-        auto res = NodePriorityProperty{.monotonic = true, .submodular = false};
+        auto res = NodePriorityProperty{.priority = nodeStatePriority, .monotonic = true, .submodular = false};
         // Non-monotonic cases
         if (      (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater
                || (Ca <=> CrMinus) == greater     && (CrMinus <=> CaPlus) == greater
@@ -274,44 +354,6 @@ struct NodePriorityProperty {
 };
 
 /*
-* Converts a node state to string
-*/
-constexpr const char* toString(NodeState t) {
-    switch (t) {
-    case NodeState::None:
-        return "None";
-    case NodeState::CaPlus:
-        return "Ca+";
-    case NodeState::Ca:
-        return "Ca";
-    case NodeState::Cr:
-        return "Cr";
-    case NodeState::CrMinus:
-        return "Cr-";
-    default:
-        return "(ERROR)";
-    }
-}
-
-/*
-* Converts a link state to string
-*/
-constexpr const char* toString(LinkState t) {
-    switch (t) {
-    case LinkState::NotSampleYet:
-        return "Unsampled";
-    case LinkState::Blocked:
-        return "Blocked";
-    case LinkState::Active:
-        return "Active";
-    case LinkState::Boosted:
-        return "Boosted";
-    default:
-        return "(ERROR)";
-    }
-}
-
-/*
 * Seed set. 
 * Sa = Seed set of positive message (Ca)
 * Sr = Seed set of negative message (Cr)
@@ -375,19 +417,12 @@ public:
         return _Sa.size() + _Sr.size();
     }
 
-#pragma clang diagnostic push
-#pragma ide diagnostic ignored "bugprone-sizeof-container"
     [[nodiscard]] std::size_t totalBytesUsed() const {
-        std::size_t res = sizeof(_Sa) + sizeof(_Sr) + sizeof(_bitsetA) + sizeof(_bitsetR);
-        res += _Sa.capacity() * sizeof(decltype(_Sa)::value_type);
-        res += _Sr.capacity() * sizeof(decltype(_Sr)::value_type);
-        // The two bitsets
-        res += _bitsetA.capacity() / 8;
-        res += _bitsetR.capacity() / 8;
+        auto res = utils::totalBytesUsed(_Sa) + utils::totalBytesUsed(_Sr)
+                + utils::totalBytesUsed(_bitsetA) + utils::totalBytesUsed(_bitsetR);
 
         return res;
     }
-#pragma clang diagnostic pop
 };
 
 /*
