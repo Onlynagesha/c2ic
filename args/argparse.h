@@ -57,7 +57,7 @@ namespace args {
         parser.parse_args(tokens);
 
         for (auto& a: argSet.all()) {
-            a = parser.get(a.labels()[0]);
+            a = parser.get(utils::string_traits_cast<std::string>(a.labels()[0]));
         }
     }
 
