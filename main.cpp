@@ -33,7 +33,6 @@ int main(int argc, char** argv) {
     logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
 
     auto args = prepareProgramArgs(argc, argv);
-
     auto graph = readGraph(args.s["graphPath"]);
     auto seeds = readSeedSet(args.s["seedSetPath"]);
     prepareDerivedArgs(args, graph.nNodes());

@@ -249,6 +249,8 @@ namespace utils {
         }
     }
 
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "Simplify"
     /*!
      * @brief Perform character traits conversion on std::basic_string instances
      *
@@ -268,6 +270,8 @@ namespace utils {
      */
     template <class To, TemplateInstanceOf<std::basic_string> From>
     inline decltype(auto) string_traits_cast(From&& str) noexcept {
+        constexpr bool enablesOptimization = true;
+
         using FromWithoutRef = std::remove_cvref_t<From>;
         using FromTraits = typename FromWithoutRef::traits_type;
         using FromAlloc = typename FromWithoutRef::allocator_type;
@@ -279,7 +283,10 @@ namespace utils {
                 StringToAllocType<To>, FromAlloc
                 >;
 
-        if constexpr (std::is_same_v<ToAlloc, FromAlloc> && NoUniqueAddress<FromTraits> && NoUniqueAddress<ToTraits>) {
+        if constexpr (enablesOptimization
+                && std::is_same_v<ToAlloc, FromAlloc>
+                && NoUniqueAddress<FromTraits>
+                && NoUniqueAddress<ToTraits>) {
             if constexpr (std::is_lvalue_reference_v<From>) {
                 // Const left value reference
                 return reinterpret_cast<const std::basic_string<char, ToTraits, ToAlloc>&>(str);
@@ -292,6 +299,7 @@ namespace utils {
             return std::basic_string<char, ToTraits, ToAlloc>(str.begin(), str.end());
         }
     }
+#pragma clang diagnostic pop
 
     /*!
      * @brief Parses an integer from a string

@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <map>
+#include <memory>
 #include <set>
 #include "any.h"
 #include "variant.h"

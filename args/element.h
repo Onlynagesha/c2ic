@@ -315,7 +315,7 @@ namespace args {
         static std::byte buffer[sizeof(T)];
 
         std::visit([](const auto &value) {
-            *(reinterpret_cast<T*>(buffer)) = fromElementValue<T>(value);
+            new(reinterpret_cast<void*>(buffer)) T(fromElementValue<T>(value));
         }, v);
 
         return std::move(*(reinterpret_cast<T*>(buffer)));

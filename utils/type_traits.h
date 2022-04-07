@@ -233,7 +233,7 @@ namespace utils {
      * @tparam T
      */
     template <class T>
-    concept NoUniqueAddress = isNoUniqueAddress<T>();
+    concept NoUniqueAddress = helper::isNoUniqueAddress<T>();
 }
 
 #endif //DAWNSEEKER_GRAPH_TYPE_TRAITS_H

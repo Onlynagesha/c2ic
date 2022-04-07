@@ -51,13 +51,13 @@ args::CIAnyArgSet makeProgramArgs() {
             {"sample-limit",       "sampleLimit"},
             "u"_expects,
             "The maximum number of PRR-sketch samples"_desc,
-            utils::halfMax<std::uintmax_t>
+            utils::halfMax<std::size_t>
         },
         {
             {"sample-limit-sa",    "sampleLimitSA"},
             "u"_expects,
             "The maximum number of PRR-sketch samples per center node in SA-IMM algorithm"_desc,
-            utils::halfMax<std::uintmax_t>
+            utils::halfMax<std::size_t>
         },
         {
             {"test-times",         "testTimes"},
