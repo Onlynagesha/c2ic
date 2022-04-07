@@ -10,7 +10,6 @@ endif()
 
 include_directories(.)
 
-add_executable(Graph playground.cpp argparse/argparse.hpp
+add_executable(Graph main.cpp argparse/argparse.hpp
         global.h Logger.h imm.cpp imm.h immbasic.h PRRGraph.cpp PRRGraph.h
-        Timer.h args.h args.cpp immbasic.cpp args-v2.h args-v2.cpp)
-#add_executable(Graph playground.cpp)
+        Timer.h immbasic.cpp args-v2.h args-v2.cpp)

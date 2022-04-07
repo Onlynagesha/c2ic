@@ -8,13 +8,10 @@
 #include "argparse/argparse.hpp"
 #include "args/args.h"
 
-struct ProgramArgs {
-    args::CIAnyArgSet argSet;
-    argparse::ArgumentParser argParser;
-};
+using AlgorithmArgs = args::CIAnyArgSet;
 
-ProgramArgs prepareProgramArgs(int argc, char** argv);
+args::CIAnyArgSet prepareProgramArgs(int argc, char** argv);
 
-void prepareDerivedArgs(args::CIAnyArgSet& delta, std::size_t kappa);
+void prepareDerivedArgs(args::CIAnyArgSet& delta, std::size_t n);
 
 #endif //DAWNSEEKER_GRAPH_ARGS_V2_H

@@ -60,26 +60,6 @@ namespace args {
             return fromElementOr(_value, alternative);
         }
 
-        auto i() const {
-            return get<std::intmax_t>();
-        }
-
-        auto u() const {
-            return get<std::uintmax_t>();
-        }
-
-        auto f() const {
-            return get<long double>();
-        }
-
-        auto s() const {
-            return get<std::string>();
-        }
-
-        auto cis() const {
-            return get<utils::ci_string>();
-        }
-
         auto compare(const BasicVariant &rhs) const {
             return compareElements(_value, rhs._value);
         }

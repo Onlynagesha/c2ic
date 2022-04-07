@@ -1,7 +1,7 @@
 #ifndef DAWNSEEKER_IMM_H
 #define DAWNSEEKER_IMM_H
 
-#include "args.h"
+#include "args-v2.h"
 #include "global.h"
 #include "immbasic.h"
 #include "Logger.h"
@@ -11,7 +11,7 @@
 #include <locale>
 #include <numbers>
 #include <numeric>
-#include <vector> 
+#include <vector>
 
 /*
 * Collection of all PRR-sketches
@@ -23,7 +23,7 @@ struct PRRGraphCollection {
 
     struct Node {
         std::size_t index;
-        NodeState   centerStateTo;
+        NodeState centerStateTo;
     };
 
     // Simplified PRR-sketch type
@@ -32,31 +32,35 @@ struct PRRGraphCollection {
     //  for [v, centerStateTo] in items:
     //   centerStateTo = which state the center node will become if node v is set boosted
     struct SimplifiedPRRGraph {
-        NodeState           centerState;
-        std::vector<Node>   items;
+        NodeState centerState;
+        std::vector<Node> items;
     };
 
     // Number of nodes in the graph, i.e. |V|
-    std::size_t                         n{};
+    std::size_t n{};
     // Seed set
-    SeedSet                             seeds;
+    SeedSet seeds;
     // prrGraph[i] = the i-th PRR-sketch
-    std::vector<SimplifiedPRRGraph>     prrGraph;
+    std::vector<SimplifiedPRRGraph> prrGraph;
     // contrib[v] = All the PRR-sketches where boosted node v changes the center node's state
     // for [i, centerStateTo] in contrib[v]:
     //  centerStateTo = which state the center node in the i-th PRR-sketch will become
     //                  if node v is set boosted
-    std::vector<std::vector<Node>>      contrib;
+    std::vector<std::vector<Node>> contrib;
     // totalGain[v] = total gain of the node v
-    std::vector<double>                 totalGain;
+    std::vector<double> totalGain;
 
     // Default constructor is deleted to force initialization
     PRRGraphCollection() = delete;
+
     // Delays initialization WITH the tag type
-    explicit PRRGraphCollection(InitLater) {}
+    explicit PRRGraphCollection(InitLater) {
+    }
+
     // Initializes WITH |V| and the seed set
     explicit PRRGraphCollection(std::size_t n, SeedSet seeds) :
-    n(n), seeds(std::move(seeds)), contrib(n), totalGain(n, 0.0) {}
+            n(n), seeds(std::move(seeds)), contrib(n), totalGain(n, 0.0) {
+    }
 
     // Initializes WITH |V| and the seed set
     void init(std::size_t _n, SeedSet _seeds) {
@@ -73,7 +77,7 @@ struct PRRGraphCollection {
         // Index of the PRR-sketch to be added
         auto prrListId = prrGraph.size();
 
-        for (const auto& node : G.nodes()) {
+        for (const auto& node: G.nodes()) {
             double nodeGain = gain(node.centerStateTo) - gain(G.centerState);
             // Zero-gain nodes are skipped to save memory usage
             if (nodeGain <= 0.0) {
@@ -81,18 +85,19 @@ struct PRRGraphCollection {
             }
             auto v = node.index();
             // Boosted node v, and the state changes the center node will change to
-            prrList.push_back(Node{ .index = v, .centerStateTo = node.centerStateTo });
+            prrList.push_back(Node{.index = v, .centerStateTo = node.centerStateTo});
             // Boosted node v has influence on current PRR-sketch
-            contrib[v].push_back(Node{.index = prrListId, .centerStateTo = node.centerStateTo });
+            contrib[v].push_back(Node{.index = prrListId, .centerStateTo = node.centerStateTo});
             totalGain[v] += nodeGain;
         }
 
         // Empty PRR-sketch (if no node makes positive gain) is also skipped to same memory usage
         if (!prrList.empty()) {
-            prrGraph.push_back(SimplifiedPRRGraph{
-                .centerState = G.centerState,
-                .items = std::move(prrList)
-            });
+            prrGraph.push_back(
+                    SimplifiedPRRGraph{
+                            .centerState = G.centerState, .items = std::move(prrList)
+                    }
+            );
         }
     }
 
@@ -100,8 +105,7 @@ private:
 
     // Helper non-const function of greedy selection
     template <class OutIter>
-    requires std::output_iterator<OutIter, std::size_t>
-             || std::same_as<OutIter, std::nullptr_t>
+    requires std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>
     double _select(std::size_t k, OutIter iter) const {
         double res = 0.0;
         // Makes a copy of the totalGain[] to update values during selection
@@ -133,7 +137,7 @@ private:
             totalGainCopy[v] = halfMin<double>;
 
             // Impose influence to all the PRR-sketches by node v
-            for (auto [prrId, centerStateTo] : contrib[v]) {
+            for (auto[prrId, centerStateTo]: contrib[v]) {
                 // Attempts to update the center state of current PRR-sketch...
                 auto cmp = centerStateTo <=> centerStateCopy[prrId];
                 // ...only if the update makes higher priority.
@@ -145,7 +149,7 @@ private:
                 // After the center state of the prrId-th PRR-sketch changed from C0 to C1,
                 //  all other nodes that may change the same PRR-sketch will make lower gain,
                 //  from (C2 - C0) to (C2 - C1), diff = C1 - C0
-                for (const auto& [j, s] : prrGraph[prrId].items) {
+                for (const auto&[j, s]: prrGraph[prrId].items) {
                     totalGainCopy[j] -= curGain;
                 }
                 // Updates state of the prrId-th PRR-sketch
@@ -167,14 +171,14 @@ public:
     //  (1 - 1/e) x 100% (63.2% approximately) of the global optimal.
     // ** FOR MONOTONE & SUB-MODULAR CASES ONLY **
     template <class OutIter>
-        requires std::output_iterator<OutIter, std::size_t>
-        || std::same_as<OutIter, std::nullptr_t>
+    requires std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>
     double select(std::size_t k, OutIter iter = nullptr) const {
         return _select(k, iter);
     }
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "bugprone-sizeof-container"
+
     /*
     * Returns an estimation of total bytes used
     */
@@ -188,8 +192,9 @@ public:
         // Total bytes of totalGain[]
         bytes += ::totalBytesUsed(totalGain);
 
-        return bytes; 
+        return bytes;
     }
+
 #pragma clang diagnostic pop
 
     /*
@@ -197,11 +202,11 @@ public:
     * i.e. sum |R_i| for i = 1 to |R|
     */
     [[nodiscard]] std::size_t nTotalNodes() const {
-        auto res = std::size_t{ 0 }; 
-        for (const auto& inner : prrGraph) {
+        auto res = std::size_t{0};
+        for (const auto& inner: prrGraph) {
             res += inner.items.size();
         }
-        return res; 
+        return res;
     }
 
     /*
@@ -214,13 +219,14 @@ public:
         auto info = format("Graph size |V| = {}\nNumber of PRR-sketches stored = {}\n", n, prrGraph.size());
 
         // Dumps total number of nodes 
-        auto nNodes = nTotalNodes(); 
-        info += format(loc, "Total number of nodes = {}, {:.3f} per PRR-sketch in average\n", 
-            nNodes, 1.0 * (double)nNodes / (double)prrGraph.size());
+        auto nNodes = nTotalNodes();
+        info += format(
+                loc, "Total number of nodes = {}, {:.3f} per PRR-sketch in average\n", nNodes,
+                1.0 * (double) nNodes / (double) prrGraph.size());
 
         // Dumps memory used
         info += format(loc, "Memory used = {}", totalBytesUsedToString(totalBytesUsed()));
-        return info; 
+        return info;
     }
 };
 
@@ -233,30 +239,32 @@ struct PRRGraphCollectionSA {
 
     struct Node {
         std::size_t index;
-        double      value;
+        double value;
     };
 
     // Number of nodes
-    std::size_t                     n{};
+    std::size_t n{};
     // Threshold of contribution.
     // For each center node v and boosted node s, if gain(s; v) does not reach this threshold,
     //  it is filtered out to same memory usage.
-    double                          threshold{};
+    double threshold{};
     // Seed set
-    SeedSet                         seeds;
+    SeedSet seeds;
     // For each {v, g} in gainsByBoosted[s],
     //  node s makes gain = g to center node v, if the single node s is set as boosted
-    std::vector<std::vector<Node>>  gainsByBoosted;
+    std::vector<std::vector<Node>> gainsByBoosted;
 
     // Default ctor. is deleted to force initialization
     PRRGraphCollectionSA() = delete;
 
     // Explicitly marks to initialize later
-    explicit PRRGraphCollectionSA(InitLater) {}
+    explicit PRRGraphCollectionSA(InitLater) {
+    }
 
     // Initialize with n = graph size |V|, threshold, and seed set
-    explicit PRRGraphCollectionSA(std::size_t _n, double _threshold, SeedSet _seeds):
-            n(_n), threshold(_threshold), seeds(std::move(_seeds)), gainsByBoosted(_n) {}
+    explicit PRRGraphCollectionSA(std::size_t _n, double _threshold, SeedSet _seeds) :
+            n(_n), threshold(_threshold), seeds(std::move(_seeds)), gainsByBoosted(_n) {
+    }
 
     // Initialize with n = graph size |V|, threshold, and seed set
     void init(std::size_t _n, double _threshold, SeedSet _seeds) {
@@ -286,6 +294,7 @@ private:
 
 #pragma clang diagnostic push
 #pragma ide diagnostic ignored "ArgumentSelectionDefects"
+
     // Helper function of selection
     // Merges greedy selection and random greedy together
     template <HowToChoose how, class OutIter>
@@ -305,7 +314,7 @@ private:
         for (std::size_t i = 0; i < k; i++) {
             rs::fill(totalGainsBy, 0.0);
             for (std::size_t s = 0; s < n; s++) {
-                for (const auto& [v, g]: gainsByBoosted[s]) {
+                for (const auto&[v, g]: gainsByBoosted[s]) {
                     totalGainsBy[s] += std::max(0.0, g - maxGainTo[v]);
                 }
             }
@@ -325,15 +334,17 @@ private:
             std::size_t cur;
             if constexpr (how == HowToChoose::GreedyOne) {
                 cur = rs::max_element(totalGainsBy) - totalGainsBy.begin();
-            } else {
+            }
+            else {
                 auto nCandidates = std::min(k, n - selected.size() - seeds.size());
                 auto indices = std::vector<std::size_t>(n);
                 std::iota(indices.begin(), indices.end(), std::size_t{0});
                 // Gets the first k nodes that makes the maximum total gain
-                rs::nth_element(indices, indices.begin() + (std::ptrdiff_t)nCandidates,
-                                [&](std::size_t s1, std::size_t s2) {
-                    return totalGainsBy[s1] > totalGainsBy[s2];
-                });
+                rs::nth_element(
+                        indices, indices.begin() + (std::ptrdiff_t) nCandidates, [&](std::size_t s1, std::size_t s2) {
+                            return totalGainsBy[s1] > totalGainsBy[s2];
+                        }
+                );
                 // Picks one of the k candidates uniformly randomly
                 static auto gen = createMT19937Generator();
                 auto dist = std::uniform_int_distribution<std::size_t>(0, nCandidates - 1);
@@ -346,7 +357,7 @@ private:
                 *iter++ = cur;
             }
             // Updates all the max gain of each center node v
-            for (const auto& [v, g]: gainsByBoosted[cur]) {
+            for (const auto&[v, g]: gainsByBoosted[cur]) {
                 maxGainTo[v] = std::max(maxGainTo[v], g);
             }
         }
@@ -376,6 +387,7 @@ public:
     double randomSelect(std::size_t k, OutIter iter = nullptr) {
         return _select<HowToChoose::RandomK>(k, iter);
     }
+
 #pragma clang diagnostic pop
 
     [[nodiscard]] std::size_t totalBytesUsed() const {
@@ -397,8 +409,10 @@ public:
 
         // Dumps total number of nodes
         auto nRecords = nTotalRecords();
-        info += format(loc, "Total number of records = {}, {:.3f} per node in average\n",
-                       nRecords, 1.0 * (double)nRecords / (double)n);
+        info += format(
+                loc, "Total number of records = {}, {:.3f} per node in average\n", nRecords,
+                1.0 * (double) nRecords / (double) n
+        );
 
         // Dumps memory used
         info += format(loc, "Memory used = {}", totalBytesUsedToString(totalBytesUsed()));
@@ -407,8 +421,8 @@ public:
 };
 
 struct IMMResult {
-    std::vector<std::size_t>    boostedNodes; 
-    double                      totalGain;
+    std::vector<std::size_t> boostedNodes;
+    double totalGain;
 };
 
 inline std::string toString(const IMMResult& item, int indent = -1, int indentOutside = 0) {
@@ -428,12 +442,12 @@ inline std::string toString(const IMMResult& item, int indent = -1, int indentOu
     return res;
 }
 
-struct IMMResult3: std::array<IMMResult, 3> {
-    std::array<std::string, 3>  labels;
-    std::size_t                 bestIndex;
+struct IMMResult3 : std::array<IMMResult, 3> {
+    std::array<std::string, 3> labels;
+    std::size_t bestIndex;
 
     [[nodiscard]] const IMMResult& best() const {
-        return operator[](bestIndex);
+        return operator [](bestIndex);
     }
 };
 
@@ -464,12 +478,12 @@ inline std::string toString(const IMMResult3& item, int indent = 4, int indentIn
 * Returns the result of PR_IMM algorithm with given seed set and arguments
 * ** FOR MONOTONIC & SUB-MODULAR CASES **
 */
-IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args);
+IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
 
 /*
  * Returns the result of SA_IMM algorithm (for monotonic cases)
  *  or SA_RG_IMM algorithm (for non-monotonic cases) with given seed set and arguments
  */
-IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArguments& args);
+IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
 
 #endif //DAWNSEEKER_IMM_H

@@ -12,11 +12,6 @@
 #include "variant.h"
 
 namespace args {
-    template <class ValueType,
-            utils::TemplateInstanceOf<std::basic_string> LabelType,
-            class ContentType>
-    class ContentVisitor;
-
     template <utils::TemplateInstanceOf<std::basic_string> LabelType = std::string,
             class ContentType_ = BasicVariant<LabelType>>
     class BasicArgSet {
@@ -33,12 +28,28 @@ namespace args {
         struct VisitorCtorTag {};
         static constexpr VisitorCtorTag visitorCtorTag{};
 
+        template <class ValueType>
+        struct ContentVisitor {
+            using ParentType = BasicArgSet;
+            const ParentType* parent = nullptr;
+
+            explicit ContentVisitor(const ParentType* p): parent(p) {}
+
+            ValueType operator [] (const utils::StringLike auto& label) const {
+                return parent->getValue<ValueType>(label);
+            }
+
+            ValueType operator () (const utils::StringLike auto& label, const ValueType& alternative) const {
+                return parent->getValueOr(label, alternative);
+            }
+        };
+
     public:
-        ContentVisitor<std::intmax_t, LabelType, ContentType> i;
-        ContentVisitor<std::uintmax_t, LabelType, ContentType> u;
-        ContentVisitor<long double, LabelType, ContentType> f;
-        ContentVisitor<std::string, LabelType, ContentType> s;
-        ContentVisitor<utils::ci_string, LabelType, ContentType> cis;
+        ContentVisitor<std::intmax_t> i;
+        ContentVisitor<std::uintmax_t> u;
+        ContentVisitor<long double> f;
+        ContentVisitor<std::string> s;
+        ContentVisitor<utils::ci_string> cis;
 
     private:
         explicit BasicArgSet(VisitorCtorTag): i(this), u(this), f(this), s(this), cis(this) {}
@@ -50,6 +61,16 @@ namespace args {
             for (const auto& v: variants) {
                 add(v);
             }
+        }
+
+        BasicArgSet(const BasicArgSet& other): BasicArgSet(visitorCtorTag) {
+            _variants = other._variants;
+            _variantMap = other._variantMap;
+        }
+
+        BasicArgSet(BasicArgSet&& other) noexcept : BasicArgSet(visitorCtorTag) {
+            _variants = std::move(other._variants);
+            _variantMap = std::move(other._variantMap);
         }
 
         void clear() {
@@ -156,25 +177,6 @@ namespace args {
                 res.append(toString<TraitsOrStr>(*v));
             }
             return res;
-        }
-    };
-
-    template <class ValueType,
-            utils::TemplateInstanceOf<std::basic_string> LabelType,
-            class ContentType>
-    class ContentVisitor {
-        using ParentType = BasicArgSet<LabelType, ContentType>;
-        const ParentType* parent;
-
-    public:
-        explicit ContentVisitor(const ParentType* parent): parent(parent) {}
-
-        ValueType operator [] (const utils::StringLike auto& label) const {
-            return parent->template getValue<ValueType>(label);
-        }
-
-        ValueType operator () (const utils::StringLike auto& label, const ValueType& alternative) const {
-            return parent->template getValueOr(label, alternative);
         }
     };
 

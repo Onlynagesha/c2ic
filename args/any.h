@@ -73,26 +73,6 @@ namespace args {
             return alternative;
         }
 
-        auto i() const {
-            return get<std::intmax_t>();
-        }
-
-        auto u() const {
-            return get<std::uintmax_t>();
-        }
-
-        auto f() const {
-            return get<long double>();
-        }
-
-        auto s() const {
-            return get<std::string>();
-        }
-
-        auto cis() const {
-            return get<utils::ci_string>();
-        }
-
         template <class T>
         auto compare(const T& rhs) const -> std::partial_ordering {
             if constexpr (getElementType<T>() != AlternativeType::Other) {
@@ -116,7 +96,7 @@ namespace args {
 
         template <class T>
         auto& getRef() {
-            if constexpr (getElementType<T>() != AlternativeType::None) {
+            if constexpr (getElementType<T>() != AlternativeType::Other) {
                 if (holdsVariant()) {
                     return refFromElement<T>(std::get<VariantElement>(_content));
                 }

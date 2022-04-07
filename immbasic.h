@@ -211,6 +211,10 @@ inline void setNodeStatePriority(int caPlus, int ca, int cr, int crMinus) {
     nodeStatePriority = setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus);
 }
 
+inline void setNodeStatePriority(const NodeStatePriorityArray& arr) {
+    nodeStatePriority = arr;
+}
+
 // Properties of the node priority
 struct NodePriorityProperty {
     NodeStatePriorityArray  priority;       // The priority array
@@ -541,7 +545,8 @@ struct IMMNode: graph::BasicNode<std::size_t> {
     bool        boosted;
 
     IMMNode() = default;
-    explicit IMMNode(std::size_t idx): graph::BasicNode<std::size_t>(idx) {} // NOLINT(cppcoreguidelines-pro-type-member-init)
+    explicit IMMNode(std::size_t idx): // NOLINT(cppcoreguidelines-pro-type-member-init)
+    graph::BasicNode<std::size_t>(idx) {}
 };
 
 // Graph type for IMM algorithms

@@ -1,4 +1,4 @@
-#include "argparse/argparse.hpp"
+#include "args-v2.h"
 #include "global.h"
 #include "imm.h"
 #include "Logger.h"
@@ -32,29 +32,25 @@ int main(int argc, char** argv) {
     // To standard output
     logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
 
-    auto args = AlgorithmArguments();
-    if (!parseArgs(args, argc, argv)) {
-        LOG_CRITICAL("Failed to parse arguments. Abort.");
-        return -1;
-    }
+    auto args = prepareProgramArgs(argc, argv);
 
-    auto graph = readGraph(args.graphPath);
-    auto seeds = readSeedSet(args.seedSetPath);
-    args.updateValues(graph.nNodes());
-    args.updateGainAndPriority();
-    LOG_INFO(args.dump());
+    auto graph = readGraph(args.s["graphPath"]);
+    auto seeds = readSeedSet(args.s["seedSetPath"]);
+    prepareDerivedArgs(args, graph.nNodes());
+    LOG_INFO("Arguments: " + toString(args));
 
-    auto property = NodePriorityProperty::current();
-    if (args.algo == "pr-imm" || property.satisfies("m-s")) {
+    auto property = args["priority"].get<NodePriorityProperty>();
+
+    if (args.cis["algo"] == "pr-imm" || property.satisfies("m-s")) {
         auto res = PR_IMM(graph, seeds, args);
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
-        auto simRes = simulate(graph, seeds, res.boostedNodes, args.testTimes);
+        auto simRes = simulate(graph, seeds, res.boostedNodes, args.u["testTimes"]);
         LOG_INFO(format("Simulation result: {}", simRes));
         LOG_INFO(format("Minimal result:\n{}", makeMinimumResult(graph, res, simRes)));
     }
-    else if (args.algo == "sa-imm" || args.algo == "sa-rg-imm" || property.satisfies("nS")) {
+    else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);
         LOG_INFO("SA-IMM result: " + toString(res, 4, 4));
         for (std::size_t i: {0, 1}) {
@@ -62,7 +58,7 @@ int main(int argc, char** argv) {
         }
 
         for (std::size_t i = 0; i < 3; i++) {
-            auto simRes = simulate(graph, seeds, res[i].boostedNodes, args.testTimes);
+            auto simRes = simulate(graph, seeds, res[i].boostedNodes, args.u["testTimes"]);
             LOG_INFO(format("Simulation result on '{}': {}", res.labels[i], simRes));
         }
     }
