@@ -534,7 +534,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
 GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
 
 /*!
- * @brief Solves with PageRankResult algorithm.
+ * @brief Solves with PageRank algorithm.
  *
  * Simply picks the nodes with maximum PageRanks.
  *
