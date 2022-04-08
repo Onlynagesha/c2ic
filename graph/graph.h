@@ -21,6 +21,8 @@ namespace graph {
               IndexMapType IndexMap = AssociativeIndexMap<Node>,
               tags::EnablesFastAccess enablesFastAccess = tags::EnablesFastAccess::No>
     class Graph {
+        // Type of index
+        using IndexType = typename IndexMap::IndexType;
         // If both nodes and links are preserved,
         //  a faster-access type for adjacency list item can be enabled.
         static constexpr bool enablesFastRefLink =
@@ -477,10 +479,17 @@ namespace graph {
             return _indexMap.get(node);
         }
 
-        // Gets the mapped index of given node, with faster access
-        std::size_t fastMappedIndex(const NodeOrIndex auto& node) const {
-            return _fastGet(node);
+        // Gets the mapped index of given node
+        std::size_t fastMappedIndex(const IndexType& index) const {
+            return _fastGet(index);
         }
+
+        // Gets the mapped index of given node, with faster access.
+        // REQUIRES: node must be a reference from the Graph object, otherwise the behavior is undefined
+        std::size_t fastMappedIndex(const Node& node) const {
+            return static_cast<std::size_t>(&node - _nodes.data());
+        }
+
 
         // Gets a pointer to the link u -> v or u -- v with given node indices,
         // or nullptr when it doesn't exist. (non-const overload)

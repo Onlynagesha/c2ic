@@ -11,26 +11,38 @@
 #include "utils/type_traits.h"
 
 namespace graph {
-    namespace helper {
-        template <NodeOrIndex Node,
-                  LinkType Link,
-                  IndexMapType IndexMap,
-                  tags::EnablesFastAccess enablesFastAccess>
-        class PageRank {
-            using ParentType = Graph<Node, Link, IndexMap, enablesFastAccess>;
+    template <NodeOrIndex Node,
+              LinkType Link,
+              IndexMapType IndexMap,
+            tags::EnablesFastAccess enablesFastAccess>
+    class PageRankResult {
+        using ParentType = Graph<Node, Link, IndexMap, enablesFastAccess>;
 
-            const ParentType* _parent;
-            std::vector<double> _pr;
+        const ParentType* _parent;
+        std::vector<double> _pr;
 
-        public:
-            PageRank(const ParentType* parent, std::vector<double> pr):
-                    _parent(parent), _pr(std::move(pr)) {}
+    public:
+        PageRankResult(const ParentType* parent, std::vector<double> pr):
+                _parent(parent), _pr(std::move(pr)) {}
 
-            double operator [] (const NodeOrIndex auto& node) const {
-                return _pr[_parent->mappedIndex(node)];
+        double operator [] (const NodeOrIndex auto& node) const {
+            return _pr[_parent->mappedIndex(node)];
+        }
+
+        [[nodiscard]] double sum() const {
+            return std::accumulate(_pr.begin(), _pr.end(), 0.0);
+        }
+
+        [[nodiscard]] bool isNormalized(double* sumRes = nullptr, double eps = 1e-6) const {
+            auto s = sum();
+            if (sumRes != nullptr) {
+                *sumRes = s;
             }
-        };
+            return std::fabs(s - 1.0) <= eps;
+        }
+    };
 
+    namespace helper {
         template <NodeOrIndex Node,
                   LinkType Link,
                   IndexMapType IndexMap,
@@ -85,7 +97,7 @@ namespace graph {
             };
 
             while (doIteration() >= eps * eps) {}
-            return PageRank(&graph, std::move(pr));
+            return PageRankResult(&graph, std::move(pr));
         }
     }
 
@@ -93,9 +105,9 @@ namespace graph {
      * @brief Gets the page rank of each node in a directed graph
      *
      * @param graph The directed graph object. Left-value reference is required
-     * @param alpha Damping factor in PageRank algorithm (0.85 by default)
+     * @param alpha Damping factor in PageRankResult algorithm (0.85 by default)
      * @param eps Tolerance of error during iteration (1e-6 by default)
-     * @return a PageRank object to access the page rank value of each node
+     * @return a PageRankResult object to access the page rank value of each node
      */
     template <class GraphType> requires (std::is_lvalue_reference_v<GraphType>)
     auto pageRank(GraphType&& graph, double alpha = 0.85, double eps = 1e-6) {
