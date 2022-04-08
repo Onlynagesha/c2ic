@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_TYPE_TRAITS_H
-#define DAWNSEEKER_GRAPH_TYPE_TRAITS_H
+#ifndef DAWNSEEKER_UTILS_TYPE_TRAITS_H
+#define DAWNSEEKER_UTILS_TYPE_TRAITS_H
 
 /*!
  * @file utils/type_traits.h
@@ -70,6 +70,27 @@ namespace utils {
         // Without cvref, specialization of std::variant
         template <class T, class... Args>
         struct IndexOfTypesNoCVRef<T, std::variant<Args...>>: IndexOfTypesNoCVRef<T, Args...> {};
+
+        template <class... Args>
+        struct AllSame;
+
+        // No type: always true
+        template <>
+        struct AllSame<> {
+            static constexpr bool value = true;
+        };
+
+        // Only 1 type: always true
+        template <class Arg>
+        struct AllSame<Arg> {
+            static constexpr bool value = true;
+        };
+
+        // >= 2 types
+        template <class Arg1, class Arg2, class... Args>
+        struct AllSame<Arg1, Arg2, Args...> {
+            static constexpr bool value = std::is_same_v<Arg1, Arg2> && AllSame<Arg2, Args...>::value;
+        };
 
         template <class T>
         constexpr inline bool isNoUniqueAddress() {
@@ -162,6 +183,25 @@ namespace utils {
     (std::convertible_to<std::remove_cvref_t<T>, std::remove_cvref_t<Args>> || ...);
 
     /*!
+     * @brief Concept on whether all the types in Args... are exactly the same
+     * @tparam Args
+     */
+    template <class... Args>
+    concept AllTheSame = helper::AllSame<Args...>::value;
+
+    /*!
+     * @brief Concept on whether all the types in Args... are the same if cvref is ignored
+     *
+     * All the following are ignored during comparison:
+     *   - const/volatile specifiers
+     *   - references
+     *
+     * @tparam Args
+     */
+    template <class... Args>
+    concept AllTheSameWithoutCVRef = helper::AllSame<std::remove_cvref_t<Args>...>::value;
+
+    /*!
      * @brief Template variable as bool, whether Inst is an instance of template type Tp<class...>
      *
      * Example:
@@ -191,6 +231,109 @@ namespace utils {
      */
     template <class Inst, template <class...> class Tp>
     concept TemplateInstanceOf = isTemplateInstanceOf<std::remove_cvref_t<Inst>, Tp>;
+
+
+    /*!
+     * @brief Template variable on whether Tp is a const reference (e.g. const T& or const T&&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isConstReference = std::is_reference_v<Tp> && std::is_const_v<std::remove_reference_t<Tp>>;
+
+    /*!
+     * @brief Template variable on whether Tp is a const l-value reference (e.g. const T&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isConstLValueReference = isConstReference<Tp> && std::is_lvalue_reference_v<Tp>;
+
+    /*!
+     * @brief Template variable on whether Tp is a const r-value reference (e.g. const T&&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isConstRValueReference = isConstReference<Tp> && std::is_rvalue_reference_v<Tp>;
+
+    /*!
+     * @brief Template variable on whether Tp is a non-const reference (e.g. T& or T&&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isNonConstReference = std::is_reference_v<Tp> && !std::is_const_v<std::remove_reference_t<Tp>>;
+
+    /*!
+     * @brief Template variable on whether Tp is a non-const l-value reference (e.g. T&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isNonConstLValueReference = isNonConstLValueReference<Tp> && std::is_lvalue_reference_v<Tp>;
+
+    /*!
+     * @brief Template variable on whether Tp is a non-const r-value reference (e.g. T&&)
+     * @tparam Tp
+     */
+    template <class Tp>
+    constexpr bool isNonConstRValueReference = isNonConstRValueReference<Tp> && std::is_rvalue_reference_v<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a const reference (e.g. const T& or const T&&)
+     *
+     * ConstReference<Tp> = isConstReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept ConstReference = isConstReference<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a const l-value reference (e.g. const T&)
+     *
+     * ConstLValueReference<Tp> = isConstLValueReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept ConstLValueReference = isConstLValueReference<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a const r-value reference (e.g. const T&&)
+     *
+     * ConstRValueReference<Tp> = isConstRValueReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept ConstRValueReference = isConstRValueReference<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a non-const reference (e.g. T& or T&&)
+     *
+     * NonConstReference<Tp> = isNonConstReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept NonConstReference = isNonConstReference<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a non-const l-value reference (e.g. T&)
+     *
+     * NonConstLValueReference<Tp> = isNonConstLValueReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept NonConstLValueReference = isNonConstLValueReference<Tp>;
+
+    /*!
+     * @brief concept on whether Tp is a non-const r-value reference (e.g. T&&)
+     *
+     * NonConstRValueReference<Tp> = isNonConstRValueReference<Tp>
+     *
+     * @tparam Tp
+     */
+    template <class Tp>
+    concept NonConstRValueReference = isNonConstRValueReference<Tp>;
 
     /*!
      * @brief Template variable as bool, whether C is a C++ built-in character type
@@ -236,4 +379,4 @@ namespace utils {
     concept NoUniqueAddress = helper::isNoUniqueAddress<T>();
 }
 
-#endif //DAWNSEEKER_GRAPH_TYPE_TRAITS_H
+#endif //DAWNSEEKER_UTILS_TYPE_TRAITS_H

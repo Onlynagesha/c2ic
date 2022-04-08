@@ -1,7 +1,9 @@
+#include "graph/pagerank.h"
 #include "imm.h"
 #include "Logger.h"
 #include "PRRGraph.h"
 #include "Timer.h"
+#include <concepts>
 #include <numbers>
 #include <random>
 
@@ -206,3 +208,84 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& ar
     return res;
 }
 
+GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+    auto T = args.u["greedy-test-times"];
+    auto res = GreedyResult{};
+    auto gainV = std::vector<double>(graph.nNodes());
+
+    auto initGainV = [&]() {
+        // Initializes gain of other nodes to 0
+        rs::fill(gainV, 0.0);
+        // Initializes gain of chosen nodes and seed nodes to -inf
+        utils::ranges::concatForEach([&](std::size_t v) {
+            gainV[v] = halfMin<double>;
+        }, res.boostedNodes, seeds.Sa(), seeds.Sr());
+    };
+
+    for (auto i = 0; i != args["k"].get<int>(); i++) {
+        // Early stop if no more nodes can be chosen
+        if (i + res.boostedNodes.size() + seeds.size() >= graph.nNodes()) {
+            break;
+        }
+
+        initGainV();
+        for (auto v = std::size_t{0}; v != graph.nNodes(); v++) {
+            // Skip excluded nodes
+            if (gainV[v] < 0) {
+                continue;
+            }
+            // Sets S = S + {v} temporarily
+            res.boostedNodes.push_back(v);
+            for (auto t = T; t > 0; t--) {
+                gainV[v] += simulate(graph, seeds, res.boostedNodes, T).diff.totalGain;
+            }
+            // Restores S
+            res.boostedNodes.pop_back();
+        }
+
+        auto v = rs::max_element(gainV) - gainV.begin();
+        res.boostedNodes.push_back(v);
+    }
+
+    res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
+    return res;
+}
+
+template <std::invocable<std::size_t, std::size_t> Func>
+GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args, Func&& func) {
+    auto indices = std::vector<std::size_t>(graph.nNodes());
+    std::iota(indices.begin(), indices.end(), 0);
+    rs::sort(indices, [&](std::size_t u, std::size_t v) {
+        // If exactly one of them is a seed node, then u is not seed (in other words, v is seed) => u > v
+        if (seeds.contains(u) != seeds.contains(v)) {
+            return seeds.contains(v);
+        }
+        // If neither is seed node, compare by func, func(u, v) == true => u > v
+        if (!seeds.contains(u)) {
+            return func(u, v);
+        }
+        // If both are seeds, index(u) > index(v) => u > v
+        // (simply for strong ordering, no influence to the algorithm)
+        return u > v;
+    });
+
+    auto k = std::min<std::size_t>(args.u["k"], graph.nNodes() - seeds.size());
+    auto res = GreedyResult{};
+    res.boostedNodes.assign(indices.begin(), indices.begin() + k);
+    res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
+
+    return res;
+}
+
+GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+    return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
+        return graph.inDegree(u) + graph.outDegree(u) > graph.inDegree(v) + graph.outDegree(v);
+    });
+}
+
+GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+    auto pr = graph::pageRank(graph);
+    return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
+        return pr[u] > pr[v];
+    });
+}

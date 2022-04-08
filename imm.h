@@ -53,16 +53,16 @@ struct PRRGraphCollection {
     // Default constructor is deleted to force initialization
     PRRGraphCollection() = delete;
 
-    // Delays initialization WITH the tag type
+    // Delays initialization with the tag type
     explicit PRRGraphCollection(InitLater) {
     }
 
-    // Initializes WITH |V| and the seed set
+    // Initializes with |V| and the seed set
     explicit PRRGraphCollection(std::size_t n, SeedSet seeds) :
             n(n), seeds(std::move(seeds)), contrib(n), totalGain(n, 0.0) {
     }
 
-    // Initializes WITH |V| and the seed set
+    // Initializes with |V| and the seed set
     void init(std::size_t _n, SeedSet _seeds) {
         this->n = _n;
         this->seeds = std::move(_seeds);
@@ -485,5 +485,66 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& arg
  *  or SA_RG_IMM algorithm (for non-monotonic cases) with given seed set and arguments
  */
 IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+
+struct GreedyResult {
+    std::vector<std::size_t> boostedNodes;
+    SimResult result;
+};
+
+/*!
+ * @brief Solves with greedy algorithm.
+ *
+ * Performs greedy algorithm as the following pseudocode:
+ *
+ *      //input:
+ *      //  G(V, E) as the graph
+ *      //  k as the budget
+ *      //  S_a and S_r as seed sets of positive and negative message resp.
+ *      //  T as the number of repeat times during each simulation, given as args["greedy-test-times"]
+ *      //  Ts as the number of repeat times during the final simulation, given as args["test-times"]
+ *      //output:
+ *      //  S as the selected boosted node set such that |S| <= k
+ *      S = {}
+ *      for i = 1 to k:
+ *          for v in V - S_a - S_r - S
+ *              // Simulate T times and take the average
+ *              gain(v) = simulate(G, S + {v}, T).totalGain
+ *          S += { argmax_v gain(v) }
+ *      return S, simulate(G, S, Ts)
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param args Arguments of the algorithm
+ * @return an object that contains boosted node set, and the final simulation result
+ */
+GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+
+/*!
+ * @brief Solves with max-degree algorithm.
+ *
+ * Simply picks the nodes with maximum degree.
+ *
+ * Simulation is performed after picking boosted nodes, with repeat times given as args["test-times"]
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param args Arguments of the algorithm
+ * @return an object that contains boosted node set, and the final simulation result
+ */
+GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+
+/*!
+ * @brief Solves with PageRank algorithm.
+ *
+ * Simply picks the nodes with maximum PageRanks.
+ *
+ * Simulation is performed after picking boosted nodes, with repeat times given as args["test-times"]
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param args Arguments of the algorithm
+ * @return an object that contains boosted node set, and the final simulation result
+ */
+GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
 
 #endif //DAWNSEEKER_IMM_H

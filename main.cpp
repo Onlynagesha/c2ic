@@ -28,10 +28,7 @@ std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const Si
     return res;
 }
 
-int main(int argc, char** argv) {
-    // To standard output
-    logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
-
+int mainWorker(int argc, char** argv) {
     auto args = prepareProgramArgs(argc, argv);
     auto graph = readGraph(args.s["graphPath"]);
     auto seeds = readSeedSet(args.s["seedSetPath"]);
@@ -66,4 +63,14 @@ int main(int argc, char** argv) {
     }
 
     return 0;
+}
+
+int main(int argc, char** argv) try {
+    // To standard output
+    logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
+    return mainWorker(argc, argv);
+} catch (std::exception& e) {
+    LOG_CRITICAL("Exception caught: "s + e.what());
+    LOG_CRITICAL("Abort.");
+    return -1;
 }

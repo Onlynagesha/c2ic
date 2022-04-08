@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_NUMERIC_H
-#define DAWNSEEKER_GRAPH_NUMERIC_H
+#ifndef DAWNSEEKER_UTILS_NUMERIC_H
+#define DAWNSEEKER_UTILS_NUMERIC_H
 
 /*!
  * @file utils/numeric.h
@@ -119,4 +119,4 @@ namespace utils {
     }
 }
 
-#endif //DAWNSEEKER_GRAPH_NUMERIC_H
+#endif //DAWNSEEKER_UTILS_NUMERIC_H

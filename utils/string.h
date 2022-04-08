@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_STRING_H
-#define DAWNSEEKER_GRAPH_STRING_H
+#ifndef DAWNSEEKER_UTILS_STRING_H
+#define DAWNSEEKER_UTILS_STRING_H
 
 /*!
  * @file utils/string.h
@@ -614,4 +614,4 @@ namespace utils {
     }
 }
 
-#endif //DAWNSEEKER_GRAPH_STRING_H
+#endif //DAWNSEEKER_UTILS_STRING_H

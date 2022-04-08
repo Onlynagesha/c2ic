@@ -17,9 +17,9 @@ namespace graph {
     // enablesFastAccess: whether enable fast access to the adjacency list items.
     //  If enabled, reserve({{"nodes", |V|}, {"links", |E|}}) must be performed.
     template <NodeOrIndex Node,
-            LinkType Link,
-            IndexMapType IndexMap = AssociativeIndexMap<Node>,
-    tags::EnablesFastAccess enablesFastAccess = tags::EnablesFastAccess::No>
+              LinkType Link,
+              IndexMapType IndexMap = AssociativeIndexMap<Node>,
+              tags::EnablesFastAccess enablesFastAccess = tags::EnablesFastAccess::No>
     class Graph {
         // If both nodes and links are preserved,
         //  a faster-access type for adjacency list item can be enabled.
@@ -424,6 +424,18 @@ namespace graph {
         // (2) maximal number of nodes have been reserved well by "nodes" argument in .reserve() call.
         std::size_t fastOutDegree(const NodeOrIndex auto& from) const {
             return _adjList[_fastGet(from)].size();
+        }
+
+        // Degree of a node: equivalent to inDegree + outDegree
+        std::size_t degree(const NodeOrIndex auto& node) const {
+            return _indexMap.check(node) ? fastDegree(node) : 0;
+        }
+
+        // Degree of a node: equivalent to inDegree + outDegree. Assuming that:
+        // (1) the node has been added before;
+        // (2) maximal number of nodes have been reserved well by "nodes" argument in .reserve() call.
+        std::size_t fastDegree(const NodeOrIndex auto& node) const {
+            return fastInDegree(node) + fastOutDegree(node);
         }
 
         // Gets a pointer of the node with given index. (non-const overload)

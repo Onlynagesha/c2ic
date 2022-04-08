@@ -65,6 +65,12 @@ args::CIAnyArgSet makeProgramArgs() {
             10000
         },
         {
+            {"greedy-test-times",  "greedyTestTimes"},
+            "u"_expects,
+            "How many times to test each node in greedy algorithm"_desc,
+            1000
+        },
+        {
             {"log-per-percentage", "logPerPercentage"},
             "f"_expects,
             "Frequency of debug message during the algorithm (Used for debug logging)"_desc,

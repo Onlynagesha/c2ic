@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_RANDOM_H
-#define DAWNSEEKER_GRAPH_RANDOM_H
+#ifndef DAWNSEEKER_UTILS_RANDOM_H
+#define DAWNSEEKER_UTILS_RANDOM_H
 
 /*!
  * @file utils/random.h
@@ -27,4 +27,4 @@ namespace utils {
     }
 }
 
-#endif //DAWNSEEKER_GRAPH_RANDOM_H
+#endif //DAWNSEEKER_UTILS_RANDOM_H

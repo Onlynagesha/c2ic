@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_CSTRING_H
-#define DAWNSEEKER_GRAPH_CSTRING_H
+#ifndef DAWNSEEKER_UTILS_CSTRING_H
+#define DAWNSEEKER_UTILS_CSTRING_H
 
 /*!
  * @file utils/cstring.h
@@ -331,4 +331,4 @@ namespace utils::cstr {
     }
 }
 
-#endif //DAWNSEEKER_GRAPH_CSTRING_H
+#endif //DAWNSEEKER_UTILS_CSTRING_H

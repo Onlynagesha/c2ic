@@ -2,8 +2,8 @@
 // Created by Onlynagesha on 2022/4/4.
 //
 
-#ifndef DAWNSEEKER_GRAPH_ASSERT_H
-#define DAWNSEEKER_GRAPH_ASSERT_H
+#ifndef DAWNSEEKER_UTILS_ASSERT_H
+#define DAWNSEEKER_UTILS_ASSERT_H
 
 /*!
  * @file utils/typeinfo.h
@@ -53,4 +53,4 @@ namespace utils {
     };
 }
 
-#endif //DAWNSEEKER_GRAPH_ASSERT_H
+#endif //DAWNSEEKER_UTILS_ASSERT_H

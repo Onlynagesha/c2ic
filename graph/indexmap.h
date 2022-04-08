@@ -18,7 +18,10 @@ namespace graph {
     // The mapped indices are provided by the Graph type. (see below for details)
     template <class IndexMap>
     concept IndexMapType = std::is_default_constructible_v<IndexMap>
-    && requires(IndexMap im, std::size_t n, BasicNode<std::size_t> node) {
+    && requires(IndexMap im,
+            typename IndexMap::IndexType n,
+            std::size_t mappedN,
+            BasicNode<typename IndexMap::IndexType> node) {
         // .get(node) returns the mapped index
         { im.get(n) } -> std::convertible_to<std::size_t>;
         { im.get(node) } -> std::convertible_to<std::size_t>;
@@ -27,8 +30,8 @@ namespace graph {
         { im.check(n) } -> std::convertible_to<bool>;
         { im.check(node) } -> std::convertible_to<bool>;
         // .set(node, i) sets the mapped index of given node to i
-        { im.set(n, n) };
-        { im.set(node, n) };
+        { im.set(n, mappedN) };
+        { im.set(node, mappedN) };
     };
 
     /*
@@ -49,6 +52,10 @@ namespace graph {
      * It's required that into the graph the nodes are added in the order of index = 0, 1, 2...
      */
     class IdentityIndexMap {
+    public:
+        using IndexType = std::size_t;
+
+    private:
         // The next mapped index, also the current size of Graph |V|
         std::size_t nextIndex{};
 
@@ -85,6 +92,9 @@ namespace graph {
     //  this data structure needs a linear list of size O(I) to store all the mapped indices.
     // For check-free graph methods, reservation on maxIndex is required.
     class LinearIndexMap {
+    public:
+        using IndexType = std::size_t;
+
     private:
         // Null index, _map[v] == null indicates that node v has not been allocated a mapped index
         static constexpr std::size_t null = static_cast<std::size_t>(-1);
@@ -176,17 +186,31 @@ namespace graph {
             _map.clear();
         }
 
-        std::size_t get(const NodeOrIndex auto& node) const {
+        std::size_t get(const IndexType& idx) const {
+            auto it = _map.find(idx);
+            assert(it != _map.end());
+            return it->second;
+        }
+
+        std::size_t get(const Node& node) const {
             auto it = _map.find(index(node));
             assert(it != _map.end());
             return it->second;
         }
 
-        bool check(const NodeOrIndex auto& node) const {
+        bool check(const IndexType& idx) const {
+            return _map.contains(idx);
+        }
+
+        bool check(const Node& node) const {
             return _map.contains(index(node));
         }
 
-        void set(const NodeOrIndex auto& node, std::size_t mappedIndex) {
+        void set(const IndexType& idx, std::size_t mappedIndex) {
+            _map[idx] = mappedIndex;
+        }
+
+        void set(const Node& node, std::size_t mappedIndex) {
             _map[index(node)] = mappedIndex;
         }
     };

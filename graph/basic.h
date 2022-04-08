@@ -6,6 +6,7 @@
 #define DAWNSEEKER_GRAPH_GRAPH_BASIC_H
 
 #include <concepts>
+#include "utils/type_traits.h"
 
 namespace graph {
     namespace tags {
@@ -93,35 +94,37 @@ namespace graph {
         return i;
     }
 
-// Identity index for C-style null-terminated string
+    // Identity index for C-style null-terminated string
     template <std::integral CharT>
     inline const CharT* index(const CharT* str) {
         return str;
     }
 
-// Either node type or index type
-// A index(t) function that gets its index shall be provided
-// index(t) may be searched via argument-dependent lookup (ADL)
-    template <class T>
-    concept NodeOrIndex = requires(T t) {
-        { index(t) };
-    };
+    // Identity index for std::basic_string reference
+    template <utils::TemplateInstanceOf<std::basic_string> StringType>
+    inline decltype(auto) index(StringType&& str) {
+        return str;
+    }
 
-// Either node type of index type,
-//  with constraint that the index type must be unsigned integer (e.g. std::size_t)
+    // Either node type or index type
     template <class T>
-    concept NodeOrUnsignedIndex = requires(T t) {
+    concept NodeOrIndex = true;
+
+    // Either node type of index type,
+    //  with constraint that the index type must be unsigned integer (e.g. std::size_t)
+    template <class T>
+    concept NodeOrUnsignedIndex = (std::unsigned_integral<std::remove_cvref_t<T>>) || requires(T t) {
         // Use operator + to transform it as a rvalue
         { index(t) + 0u } -> std::unsigned_integral;
     };
 
-// Link type. Two functions index1(t) and index2(t) shall be provided for its node indices.
-// For a directed link t: u->v,
-//  index1(t) returns the source node u, and
-//  index2(t) returns the target link v
-// For a bidirectional link t: x--y
-//  index1(t) returns either x or y
-//  index2(t) returns either y or x
+    // Link type. Two functions index1(t) and index2(t) shall be provided for its node indices.
+    // For a directed link t: u->v,
+    //  index1(t) returns the source node u, and
+    //  index2(t) returns the target link v
+    // For a bidirectional link t: x--y
+    //  index1(t) returns either x or y
+    //  index2(t) returns either y or x
     template <class T>
     concept LinkType = requires(T t) {
         { index1(t) };
