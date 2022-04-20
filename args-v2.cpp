@@ -61,7 +61,7 @@ args::CIAnyArgSet makeProgramArgs() {
         {
             {"test-times",         "testTimes"},
             "u"_expects,
-            "How many times to test the solution by forward simulation"_desc,
+            "How many times to test each boosted node set by forward simulation"_desc,
             10000
         },
         {

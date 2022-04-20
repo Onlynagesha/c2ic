@@ -76,8 +76,17 @@ std::string makeMinimumResult(
 }
 
 auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes, std::size_t simTimes) {
+    constexpr std::size_t nSteps = 20;
+
     auto res = std::vector<SimResult>{};
-    for (std::size_t k = 1; k <= immRes.boostedNodes.size(); k++) {
+    auto r = std::pow((double)immRes.boostedNodes.size() + 1e-6, 1.0 / (double)(nSteps - 1));
+    auto last = std::size_t{0};
+    for (std::size_t i = 0; i < nSteps; i++) {
+        auto k = static_cast<std::size_t>(std::pow(r, i));
+        if (k == last) {
+            continue;
+        }
+        last = k;
         auto simRes = simulate(graph, seeds, immRes.boostedNodes | vs::take(k), simTimes);
         LOG_INFO(format("Simulation result with first {} boosted nodes: {}", k, simRes));
         res.push_back(simRes);
