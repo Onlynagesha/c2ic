@@ -3,13 +3,38 @@
 #include "imm.h"
 #include "Logger.h"
 #include "PRRGraph.h"
+#include "simulate.h"
 
 std::string dumpResult(const IMMGraph& graph, IMMResult& immRes) {
     auto res = std::string{};
+
+    auto sumInDeg = std::size_t{0};
+    auto sumOutDeg = std::size_t{0};
+    auto maxInDeg = std::numeric_limits<std::size_t>::lowest();
+    auto maxOutDeg = std::numeric_limits<std::size_t>::lowest();
+    auto minInDeg = std::numeric_limits<std::size_t>::max();
+    auto minOutDeg = std::numeric_limits<std::size_t>::max();
+
     for (auto s: immRes.boostedNodes) {
+        auto inDeg = graph.fastInDegree(s);
+        auto outDeg = graph.fastOutDegree(s);
         res += format("Boosted node {}: in-degree = {}, out-degree = {}\n",
-                      s, graph.inDegree(s), graph.outDegree(s));
+                      s, inDeg, outDeg);
+        sumInDeg += inDeg;
+        sumOutDeg += outDeg;
+        maxInDeg = std::max(maxInDeg, inDeg);
+        minInDeg = std::min(minInDeg, inDeg);
+        maxOutDeg = std::max(maxOutDeg, outDeg);
+        minOutDeg = std::min(minOutDeg, outDeg);
     }
+
+    if (!immRes.boostedNodes.empty()) {
+        res += format("In-degree:  max = {}, min = {}, avg = {:.3f}\n",
+                      maxInDeg, minInDeg, 1.0 * (double)sumInDeg / (double)immRes.boostedNodes.size());
+        res += format("Out-degree: max = {}, min = {}, avg = {:.3f}",
+                      maxOutDeg, minOutDeg, 1.0 * (double)sumOutDeg / (double)immRes.boostedNodes.size());
+    }
+
     return res;
 }
 
@@ -18,22 +43,45 @@ std::string makeMinimumResult(
         const std::vector<std::size_t>& boostedNodes,
         const SimResult& simRes) {
     auto res = std::string{};
+    // First K lines: Boosted nodes, index, in-degree, out-degree
     for (auto s: boostedNodes) {
         res += format("{} {} {}\n", s, graph.inDegree(s), graph.outDegree(s));
     }
-    for (std::size_t i = 0; auto p: {&simRes.withBoosted, &simRes.withoutBoosted, &simRes.diff}) {
+    // Then one line, simulation result (difference between with and without boosted nodes)
+    res += format("{} {} {}", simRes.diff.totalGain, simRes.diff.positiveGain, simRes.diff.negativeGain);
+    return res;
+}
+
+std::string makeMinimumResult(
+        const IMMGraph& graph,
+        const IMMResult& immRes,
+        const std::vector<SimResult>& simResults) {
+    auto res = std::string{};
+    // First line: total gain during greedy selection process in PR-IMM algorithm
+    res += toString(immRes.totalGain) + '\n';
+    // Then K lines: Boosted nodes, index, in-degree, out-degree
+    for (auto s: immRes.boostedNodes) {
+        res += format("{} {} {}\n", s, graph.inDegree(s), graph.outDegree(s));
+    }
+    // Then K lines: Simulation result (difference between with and without boosted nodes)
+    //  using the first i boosted nodes, for i = 1 to K
+    // total, positive, negative
+    for (std::size_t i = 0; const auto& simRes: simResults) {
         if (i++ != 0) {
             res += '\n';
         }
-        res += format("{} {} {}", p->totalGain, p->positiveGain, p->negativeGain);
+        res += format("{} {} {}", simRes.diff.totalGain, simRes.diff.positiveGain, simRes.diff.negativeGain);
     }
     return res;
 }
 
-std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const SimResult& simRes) {
-    auto res = std::string{};
-    res += toString(immRes.totalGain) + '\n';
-    res += makeMinimumResult(graph, immRes.boostedNodes, simRes);
+auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes, std::size_t simTimes) {
+    auto res = std::vector<SimResult>{};
+    for (std::size_t k = 1; k <= immRes.boostedNodes.size(); k++) {
+        auto simRes = simulate(graph, seeds, immRes.boostedNodes | vs::take(k), simTimes);
+        LOG_INFO(format("Simulation result with first {} boosted nodes: {}", k, simRes));
+        res.push_back(simRes);
+    }
     return res;
 }
 
@@ -60,9 +108,7 @@ int mainWorker(int argc, char** argv) {
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
-        auto simRes = simulate(graph, seeds, res.boostedNodes, args.u["testTimes"]);
-        LOG_INFO(format("Simulation result: {}", simRes));
-        LOG_INFO(format("Minimal result:\n{}", makeMinimumResult(graph, res, simRes)));
+        auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"]);
     }
     else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);

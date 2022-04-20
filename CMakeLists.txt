@@ -12,4 +12,4 @@ include_directories(.)
 
 add_executable(Graph main.cpp argparse/argparse.hpp
         global.h Logger.h imm.cpp imm.h immbasic.h PRRGraph.cpp PRRGraph.h
-        Timer.h immbasic.cpp args-v2.h args-v2.cpp)
+        Timer.h args-v2.h args-v2.cpp simulate.h)

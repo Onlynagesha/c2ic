@@ -6,6 +6,7 @@
 #include "immbasic.h"
 #include "Logger.h"
 #include "PRRGraph.h"
+#include "simulate.h"
 #include "utils.h"
 #include <cmath>
 #include <locale>
