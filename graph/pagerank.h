@@ -6,6 +6,7 @@
 #define DAWNSEEKER_GRAPH_PAGERANK_H
 
 #include <algorithm>
+#include <cmath>
 #include <numeric>
 #include "graph.h"
 #include "utils/type_traits.h"

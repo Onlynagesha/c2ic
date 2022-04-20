@@ -13,10 +13,12 @@ std::string dumpResult(const IMMGraph& graph, IMMResult& immRes) {
     return res;
 }
 
-std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const SimResult& simRes) {
+std::string makeMinimumResult(
+        const IMMGraph& graph,
+        const std::vector<std::size_t>& boostedNodes,
+        const SimResult& simRes) {
     auto res = std::string{};
-    res += toString(immRes.totalGain) + '\n';
-    for (auto s: immRes.boostedNodes) {
+    for (auto s: boostedNodes) {
         res += format("{} {} {}\n", s, graph.inDegree(s), graph.outDegree(s));
     }
     for (std::size_t i = 0; auto p: {&simRes.withBoosted, &simRes.withoutBoosted, &simRes.diff}) {
@@ -25,6 +27,13 @@ std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const Si
         }
         res += format("{} {} {}", p->totalGain, p->positiveGain, p->negativeGain);
     }
+    return res;
+}
+
+std::string makeMinimumResult(const IMMGraph& graph, IMMResult& immRes, const SimResult& simRes) {
+    auto res = std::string{};
+    res += toString(immRes.totalGain) + '\n';
+    res += makeMinimumResult(graph, immRes.boostedNodes, simRes);
     return res;
 }
 
@@ -37,7 +46,16 @@ int mainWorker(int argc, char** argv) {
 
     auto property = args["priority"].get<NodePriorityProperty>();
 
-    if (args.cis["algo"] == "pr-imm" || property.satisfies("m-s")) {
+    if (args.cis["algo"] == "greedy") {
+        auto res = greedy(graph, seeds, args);
+        LOG_INFO("Minimum result with greedy:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
+    } else if (args.cis["algo"] == "pagerank" || args.cis["algo"] == "page-rank") {
+        auto res = pageRank(graph, seeds, args);
+        LOG_INFO("Minimum result with PageRank:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
+    } else if (args.cis["algo"] == "maxdegree" || args.cis["algo"] == "max-degree") {
+        auto res = maxDegree(graph, seeds, args);
+        LOG_INFO("Minimum result with max-degree:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
+    } else if (args.cis["algo"] == "pr-imm" || property.satisfies("m-s")) {
         auto res = PR_IMM(graph, seeds, args);
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
         LOG_INFO("Details:\n" + dumpResult(graph, res));
@@ -59,7 +77,7 @@ int mainWorker(int argc, char** argv) {
         }
     }
     else {
-        LOG_ERROR("Error with NodePriorityProperty::satisfies(): failed to match any algorithm!");
+        LOG_ERROR("Failed to match any algorithm!");
     }
 
     return 0;

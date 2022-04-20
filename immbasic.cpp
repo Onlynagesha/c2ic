@@ -78,13 +78,18 @@ SimResultItem simulate(IMMGraph& graph, const SeedSet& seeds, const std::vector<
     return res;
 }
 
-/*
- * Simulates message propagation without any boosted node
- * Returns the total gain of all the nodes, Ca counted as lambda, Cr counted as lambda - 1
- */
-SimResultItem simulate(IMMGraph& graph, const SeedSet& seeds) {
-    auto emptyList = std::vector<std::size_t>{};
-    return simulate(graph, seeds, emptyList);
+SimResultItem simulateBoosted(
+        IMMGraph& graph,
+        const SeedSet& seeds,
+        const std::vector<std::size_t>& boostedNodes,
+        std::size_t simTimes)
+{
+    auto res = SimResultItem{};
+    for (std::size_t i = 0; i != simTimes; i++) {
+        res += simulate(graph, seeds, boostedNodes);
+    }
+    res /= simTimes;
+    return res;
 }
 
 /*
@@ -98,13 +103,10 @@ SimResultItem simulate(IMMGraph& graph, const SeedSet& seeds) {
  */
 SimResult simulate(IMMGraph& graph, const SeedSet& seeds,
                    const std::vector<std::size_t>& boostedNodes, std::size_t simTimes) {
+    static auto emptyList = std::vector<std::size_t>();
     auto res = SimResult{};
-    for (std::size_t i = 0; i != simTimes; i++) {
-        res.withBoosted += simulate(graph, seeds, boostedNodes);
-        res.withoutBoosted += simulate(graph, seeds);
-    }
-    res.withBoosted /= simTimes;
-    res.withoutBoosted /= simTimes;
+    res.withBoosted = simulateBoosted(graph, seeds, boostedNodes, simTimes);
+    res.withoutBoosted = simulateBoosted(graph, seeds, emptyList, simTimes);
     res.diff = res.withBoosted - res.withoutBoosted;
     return res;
 }

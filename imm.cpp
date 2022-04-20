@@ -193,6 +193,7 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& ar
     // Upper bound
     LOG_INFO("SA_IMM: Starts upper bound.");
     auto argsUB = args;
+    // Ca+ > Cr- > Cr > Ca
     argsUB["priority"].getRef<NodePriorityProperty>().priority = setNodeStatePriority(returnsValue, 3, 0, 1, 2);
     res[0] = PR_IMM(graph, seeds, argsUB);
     LOG_INFO("SA_IMM: Finished upper bound. Result = " + toString(res[0], 4));
@@ -209,6 +210,10 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& ar
 }
 
 GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+    // Prepare parameters
+    setNodeStateGain(args["lambda"].get<double>());
+    setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
+
     auto T = args.u["greedy-test-times"];
     auto res = GreedyResult{};
     auto gainV = std::vector<double>(graph.nNodes());
@@ -222,29 +227,47 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
         }, res.boostedNodes, seeds.Sa(), seeds.Sr());
     };
 
-    for (auto i = 0; i != args["k"].get<int>(); i++) {
-        // Early stop if no more nodes can be chosen
-        if (i + res.boostedNodes.size() + seeds.size() >= graph.nNodes()) {
-            break;
-        }
+    auto timer = Timer{};
+    auto logPerPercentage = args["log-per-percentage"].get<double>();
 
+    assert(graph.nNodes() >= seeds.size());
+
+    auto K = args["k"].get<std::size_t>();
+    auto nCandidates = graph.nNodes() - seeds.size();
+    auto nAttempts = (nCandidates >= K)
+            ? nCandidates * K - K * (K - 1) / 2
+            : (K + 1) * K / 2;
+    auto attemptCount = std::size_t{0};
+
+    // Early stop if no more nodes can be chosen
+    for (auto i = std::size_t{0}; i != K && i != nCandidates; i++) {
         initGainV();
-        for (auto v = std::size_t{0}; v != graph.nNodes(); v++) {
+        for (std::size_t v = 0; v != graph.nNodes(); v++) {
             // Skip excluded nodes
             if (gainV[v] < 0) {
                 continue;
             }
             // Sets S = S + {v} temporarily
             res.boostedNodes.push_back(v);
-            for (auto t = T; t > 0; t--) {
-                gainV[v] += simulate(graph, seeds, res.boostedNodes, T).diff.totalGain;
-            }
+            gainV[v] += simulateBoosted(graph, seeds, res.boostedNodes, T).totalGain;
             // Restores S
             res.boostedNodes.pop_back();
+
+            attemptCount += 1;
+            double r0 = 100.0 * (double)(attemptCount - 1) / (double)nAttempts;
+            double r1 = 100.0 * (double)(attemptCount)     / (double)nAttempts;
+            if (std::floor(r0 / logPerPercentage) != std::floor(r1 / logPerPercentage)) {
+                LOG_INFO(format("Greedy: {:.1f}% finished. "
+                                "Total time elapsed = {:.3f} sec.",
+                                r1 + 1e-6, timer.elapsed().count()));
+            }
         }
 
         auto v = rs::max_element(gainV) - gainV.begin();
         res.boostedNodes.push_back(v);
+        LOG_INFO(format("Added boosted node #{} = {} with gain = {:.3f}. "
+                        "Time used = {:.3f} sec.",
+                        i + 1, v, gainV[v], timer.elapsed().count()));
     }
 
     res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
@@ -253,6 +276,10 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
 
 template <std::invocable<std::size_t, std::size_t> Func>
 GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args, Func&& func) {
+    // Prepare parameters
+    setNodeStateGain(args["lambda"].get<double>());
+    setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
+
     auto indices = std::vector<std::size_t>(graph.nNodes());
     std::iota(indices.begin(), indices.end(), 0);
     rs::sort(indices, [&](std::size_t u, std::size_t v) {

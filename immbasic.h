@@ -674,14 +674,37 @@ inline std::string toString(const SimResult& res) noexcept {
             res.withBoosted, res.withoutBoosted, res.diff);
 }
 
-/*
- * Simulates message propagation with given boosted nodes
+/*!
+ * @brief Simulates message propagation with given boosted nodes.
+ *
  * Each simulation sums up the gain of all the nodes,
- *  Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- and None as 0.
- * Returns:
- *  (1) Results with boosted nodes
- *  (2) Results without boosted nodes
- *  (3) Difference of the two, with - without
+ * Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- and None as 0.
+ *
+ * Simulation repeats for T times and the average is taken as result.
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param boostedNodes The list of boosted nodes
+ * @param simTimes T, How many times to simulate
+ * @return Total gain, positive gain and negative gain in average
+ */
+SimResultItem simulateBoosted(
+        IMMGraph& graph,
+        const SeedSet& seeds,
+        const std::vector<std::size_t>& boostedNodes,
+        std::size_t simTimes);
+
+/*!
+ * @brief Simulates message propagation with and without given boosted nodes.
+ *
+ * Simulation repeats for T times with boosted nodes and without boosted nodes respectively.
+ * See simulateBoosted for details.
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param boostedNodes The list of boosted nodes
+ * @param simTimes T, How many times to simulate
+ * @return Simulation result with boosted nodes, without boosted nodes, and their difference
  */
 SimResult simulate(IMMGraph& graph, const SeedSet& seeds,
                    const std::vector<std::size_t>& boostedNodes, std::size_t simTimes);
