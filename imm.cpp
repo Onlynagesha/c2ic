@@ -138,9 +138,9 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
     bool usesRandomGreedy = args.cis["algo"] == "sa-rg-imm" || !NodePriorityProperty::current().satisfies("m");
 
     // Random greedy for non-monotonic cases
-    auto theta = std::min(
-            (std::size_t)(usesRandomGreedy ? args.f["theta-sa-rg"] : args.f["theta-sa"]),
-            args["sample-limit-sa"].get<std::size_t>());
+    auto theta = (std::size_t)std::min(
+            (usesRandomGreedy ? args.f["theta-sa-rg"] : args.f["theta-sa"]),
+            args.f["sample-limit-sa"]);
     LOG_INFO(format("usesRandomGreedy = {}, theta = {}", usesRandomGreedy, theta));
 
     auto timer = Timer();

@@ -586,6 +586,9 @@ inline IMMGraph readGraph(std::istream& in) {
 
 inline IMMGraph readGraph(const fs::path& path) {
     auto fin = std::ifstream(path);
+    if (!fin.is_open()) {
+        throw std::invalid_argument("Graph file not found!");
+    }
     return readGraph(fin);
 }
 
@@ -612,6 +615,9 @@ inline SeedSet readSeedSet(std::istream& in) {
 
 inline SeedSet readSeedSet(const fs::path& path) {
     auto fin = std::ifstream(path);
+    if (!fin.is_open()) {
+        throw std::invalid_argument("Seed file not found!");
+    }
     return readSeedSet(fin);
 }
 

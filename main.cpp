@@ -124,7 +124,7 @@ int mainWorker(int argc, char** argv) {
         auto res = SA_IMM(graph, seeds, args);
         LOG_INFO("SA-IMM result: " + toString(res, 4, 4));
         for (std::size_t i: {0, 1}) {
-            LOG_INFO(format("Details of {}:\n{}", res.labels[0], res[0]));
+            LOG_INFO(format("Details of {}:\n{}", res.labels[i], res[i]));
         }
 
         for (std::size_t i: {0, 1}) {

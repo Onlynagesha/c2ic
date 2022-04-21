@@ -103,7 +103,6 @@ struct PRRGraphCollection {
     }
 
 private:
-
     // Helper non-const function of greedy selection
     template <class OutIter>
     requires std::output_iterator<OutIter, std::size_t> || std::same_as<OutIter, std::nullptr_t>
