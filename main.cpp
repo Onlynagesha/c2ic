@@ -118,6 +118,7 @@ int mainWorker(int argc, char** argv) {
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
         auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"]);
+        //todo
     }
     else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);
@@ -126,9 +127,9 @@ int mainWorker(int argc, char** argv) {
             LOG_INFO(format("Details of {}:\n{}", res.labels[0], res[0]));
         }
 
-        for (std::size_t i = 0; i < 3; i++) {
-            auto simRes = simulate(graph, seeds, res[i].boostedNodes, args.u["testTimes"]);
-            LOG_INFO(format("Simulation result on '{}': {}", res.labels[i], simRes));
+        for (std::size_t i: {0, 1}) {
+            LOG_INFO(format("Starts simulation of {}", res.labels[i]));
+            auto simRes = simulateForEachPrefix(graph, seeds, res[i], args.u["testTimes"]);
         }
     }
     else {

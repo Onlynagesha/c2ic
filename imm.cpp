@@ -158,7 +158,7 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
         }
         // Takes the average
         for (auto& c: curGainsByBoosted) {
-            c /= std::floor(theta);
+            c /= (double)theta;
         }
         prrCollection.add(v, curGainsByBoosted);
 
