@@ -2,6 +2,7 @@
 #include "imm.h"
 #include "Logger.h"
 #include "PRRGraph.h"
+#include "simulate.h"
 #include "Timer.h"
 #include <concepts>
 #include <numbers>
@@ -39,7 +40,7 @@ void makeSketchSlow(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, s
 }
 
 // Generate PRR-sketches
-auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args)
+auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args)
 {
     auto LB = double{ 1.0 };
     auto prrCount = std::size_t{ 0 }; 
@@ -104,7 +105,43 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs&
     };
 }
 
-IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args)
+auto generateSamplesFixed(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
+    auto prrCollection = PRRGraphCollection(args["n"].get<std::size_t>(), seeds);
+
+    // Uniformly generates a center node in [0, n) each time
+    static auto gen = createMT19937Generator();
+    auto distCenter = std::uniform_int_distribution<std::size_t>(0, args["n"].get<std::size_t>() - 1);
+
+    auto sampleLimit = args["sample-limit"].get<std::size_t>();
+
+    auto prrGraph = PRRGraph({
+        {"nodes", graph.nNodes()},
+        {"links", graph.nLinks()},
+        {"maxIndex", graph.nNodes()}
+    });
+
+    for (std::size_t iter = 1; iter <= 20; iter++) {
+        for (std::size_t i = 0; i < sampleLimit; i++) {
+            // Uniformly generates a center
+            auto center = distCenter(gen);
+            makeSketchFast(prrCollection, graph, prrGraph, seeds, center);
+        }
+
+        // Check with a greedy selection & forward simulation
+        auto selected = std::vector<std::size_t>();
+        prrCollection.select(args.u["k"], std::back_inserter(selected));
+
+        auto simResult = simulate(graph, seeds, selected, args.u["test-times"]);
+        LOG_INFO(format("Simulation result after {} samples: {}", sampleLimit * iter, simResult));
+    }
+
+    return GenerateSamplesResult{
+        .prrCollection = std::move(prrCollection),
+        .prrCount = 20 * sampleLimit
+    };
+}
+
+IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args)
 {
     // Prepare parameters
     setNodeStateGain(args["lambda"].get<double>());
@@ -112,7 +149,8 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& arg
 
     auto res = IMMResult();
     auto timer = Timer();
-    auto [prrCollection, prrCount] = generateSamples(graph, seeds, args);
+    //auto [prrCollection, prrCount] = generateSamples(graph, seeds, args);
+    auto [prrCollection, prrCount] = generateSamplesFixed(graph, seeds, args);
 
     LOG_INFO(format("PR_IMM: Finished generating PRR-sketches. Time used = {:.3f} sec.",
         timer.elapsed().count()));
@@ -124,7 +162,7 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& arg
     return res; 
 }
 
-IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     // Prepare parameters
     setNodeStateGain(args["lambda"].get<double>());
     setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
@@ -184,7 +222,7 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
     return res;
 }
 
-IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     auto res = IMMResult3{};
     res.labels[0] = "Upper bound";
     res.labels[1] = "Lower bound";
@@ -209,7 +247,7 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& ar
     return res;
 }
 
-GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     // Prepare parameters
     setNodeStateGain(args["lambda"].get<double>());
     setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
@@ -275,7 +313,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
 }
 
 template <std::invocable<std::size_t, std::size_t> Func>
-GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args, Func&& func) {
+GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args, Func&& func) {
     // Prepare parameters
     setNodeStateGain(args["lambda"].get<double>());
     setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
@@ -304,13 +342,13 @@ GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const
     return res;
 }
 
-GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return graph.inDegree(u) + graph.outDegree(u) > graph.inDegree(v) + graph.outDegree(v);
     });
 }
 
-GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args) {
+GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     auto pr = graph::pageRank(graph);
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return pr[u] > pr[v];

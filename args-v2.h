@@ -8,7 +8,15 @@
 #include "argparse/argparse.hpp"
 #include "args/args.h"
 
-using AlgorithmArgs = args::CIAnyArgSet;
+using ProgramArgs = args::CIAnyArgSet;
+
+struct AlgorithmArgs {
+    std::size_t n;
+    std::size_t k;
+
+    std::size_t sampleLimit;
+    std::size_t sampleLimitSA;
+};
 
 args::CIAnyArgSet prepareProgramArgs(int argc, char** argv);
 

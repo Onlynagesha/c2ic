@@ -478,13 +478,13 @@ inline std::string toString(const IMMResult3& item, int indent = 4, int indentIn
 * Returns the result of PR_IMM algorithm with given seed set and arguments
 * ** FOR MONOTONIC & SUB-MODULAR CASES **
 */
-IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args);
 
 /*
  * Returns the result of SA_IMM algorithm (for monotonic cases)
  *  or SA_RG_IMM algorithm (for non-monotonic cases) with given seed set and arguments
  */
-IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args);
 
 struct GreedyResult {
     std::vector<std::size_t> boostedNodes;
@@ -517,7 +517,7 @@ struct GreedyResult {
  * @param args Arguments of the algorithm
  * @return an object that contains boosted node set, and the final simulation result
  */
-GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args);
 
 /*!
  * @brief Solves with max-degree algorithm.
@@ -531,7 +531,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& 
  * @param args Arguments of the algorithm
  * @return an object that contains boosted node set, and the final simulation result
  */
-GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args);
 
 /*!
  * @brief Solves with PageRank algorithm.
@@ -545,6 +545,6 @@ GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArg
  * @param args Arguments of the algorithm
  * @return an object that contains boosted node set, and the final simulation result
  */
-GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const AlgorithmArgs& args);
+GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args);
 
 #endif //DAWNSEEKER_IMM_H
