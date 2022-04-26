@@ -51,8 +51,8 @@ struct PRRGraphCollection {
     // totalGain[v] = total gain of the node v
     std::vector<double> totalGain;
 
-    // Default constructor is deleted to force initialization
-    PRRGraphCollection() = delete;
+    // Default constructor: Initialization must be done later
+    PRRGraphCollection() = default;
 
     // Delays initialization with the tag type
     explicit PRRGraphCollection(InitLater) {
@@ -99,6 +99,26 @@ struct PRRGraphCollection {
                             .centerState = G.centerState, .items = std::move(prrList)
                     }
             );
+        }
+    }
+
+    // Merges the two PRR-sketch collections
+    void merge(const PRRGraphCollection& other) {
+        // Let R1 = Size of this->prrGraph, R2 = Size of other.prrGraph
+        // for each [i, centerStateTo] in each other.contrib[v],
+        //  the PRR-sketch index should shift by R1, i.e. [i + R1, centerStateTo] added to this->contrib[v]
+        auto offset = prrGraph.size();
+        // Step 1: Moves all the PRR-sketch to this->prrGraph
+        rs::move(other.prrGraph, std::back_inserter(prrGraph));
+        // Step 2: Merges contribution of each node v, with PRR-sketch index shifted by R1
+        for (std::size_t v = 0; v < n; v++) {
+            for (auto [i, s]: other.contrib[v]) {
+                contrib[v].push_back(Node{.index = offset + i, .centerStateTo = s});
+            }
+        }
+        // Step 3: Sums up total gain of each node v
+        for (std::size_t v = 0; v < n; v++) {
+            totalGain[v] += other.totalGain[v];
         }
     }
 

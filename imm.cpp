@@ -5,6 +5,7 @@
 #include "simulate.h"
 #include "Timer.h"
 #include <concepts>
+#include <future>
 #include <numbers>
 #include <random>
 
@@ -13,7 +14,17 @@ struct GenerateSamplesResult {
     std::size_t         prrCount{};
 };
 
-// ** FOR MONOTONIC & SUB-MODULAR CASES ONLY **
+/*!
+ * @brief Generates one PRR-sketch. For monotonic & submodular cases only.
+ *
+ * The result will be written to prrGraph object, and added to prrCollection object.
+ *
+ * @param prrCollection The PRR-sketch collection object where the result is added
+ * @param graph The whole graph
+ * @param prrGraph The PRR-sketch object where the result is written
+ * @param seeds The seed set
+ * @param center The center node selected
+ */
 void makeSketchFast(PRRGraphCollection& prrCollection, IMMGraph& graph, PRRGraph& prrGraph,
                     const SeedSet& seeds, std::size_t center) {
     // Gets a PRR-sketch with the specified center
@@ -28,6 +39,53 @@ void makeSketchFast(PRRGraphCollection& prrCollection, IMMGraph& graph, PRRGraph
     calculateCenterStateToFast(prrGraph);
     // Adds the PRR-sketch to the collection
     prrCollection.add(prrGraph);
+}
+
+/*!
+ * @brief Generates R PRR-sketches with multi-threading support. For monotonic & submodular cases only.
+ *
+ * The results will be written to prrCollection object.
+ *
+ * @param prrCollection The PRR-sketch collection object where the results are written
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param nSamples Number of samples to generate
+ * @param nThreads Number of threads to use
+ */
+void makeSketchesFast(PRRGraphCollection& prrCollection, IMMGraph& graph,
+                      const SeedSet& seeds, std::size_t nSamples, std::size_t nThreads) {
+    // nSamplesHere = Number of samples dispatched for this thread
+    auto func = [&](std::size_t nSamplesHere) {
+        auto collection = PRRGraphCollection(graph.nNodes(), seeds);
+        auto prrGraph = PRRGraph{{
+                {"nodes", graph.nNodes()},
+                {"links", graph.nLinks()},
+                {"maxIndex", graph.nNodes()}
+        }};
+
+        // Uniformly generates a center node in [0, n) each time
+        static auto gen = createMT19937Generator();
+        auto distCenter = std::uniform_int_distribution<std::size_t>(0, graph.nNodes() - 1);
+
+        for (std::size_t i = 0; i < nSamplesHere; i++) {
+            makeSketchFast(collection, graph, prrGraph, seeds, distCenter(gen));
+        }
+        return collection;
+    };
+
+    auto tasks = std::vector<std::future<PRRGraphCollection>>();
+    for (std::size_t i = 0; i < nThreads; i++) {
+        // Expected PRR-sketch index range = [first, last)
+        std::size_t first = nSamples * i / nThreads;
+        std::size_t last = nSamples * (i + 1) / nThreads;
+        // Dispatches the task to generate (last - first) samples
+        tasks.emplace_back(std::async(std::launch::async, func, static_cast<std::size_t>(last - first)));
+    }
+
+    // Merges all the results
+    for (std::size_t i = 0; i < nThreads; i++) {
+        prrCollection.merge(tasks[i].get());
+    }
 }
 
 // No constraints on monotonicity and sub-modularity
@@ -60,6 +118,7 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& a
         {"maxIndex", graph.nNodes()}
     });
     auto sampleLimit = args.u["sample-limit"];
+    auto nThreads = args.u["n-threads"];
 
     for (int i = 1; i < (int)args.f["log2N"]; i++) {
         // theta(i) = 2^i * theta(0)
@@ -67,11 +126,9 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& a
         // minS(i) = minS(0) / 2^i
         minS /= 2.0;
 
-        for (; prrCount < sampleLimit && prrCount < (std::size_t)theta; ++prrCount) {
-            // Uniformly generates a center
-            auto center = distCenter(gen);
-            makeSketchFast(prrCollection, graph, prrGraph, seeds, center);
-        }
+        makeSketchesFast(prrCollection, graph, seeds, (std::size_t)theta - prrCount, nThreads);
+        prrCount = (std::size_t)theta;
+
         // Stops early if reaches limit
         if (prrCount >= sampleLimit) {
             LOG_INFO(format("Reaches sample limit {}", sampleLimit));
@@ -113,6 +170,7 @@ auto generateSamplesFixed(IMMGraph& graph, const SeedSet& seeds, const ProgramAr
     auto distCenter = std::uniform_int_distribution<std::size_t>(0, args["n"].get<std::size_t>() - 1);
 
     auto sampleLimit = args["sample-limit"].get<std::size_t>();
+    auto nThreads = args["n-threads"].get<std::size_t>();
 
     auto prrGraph = PRRGraph({
         {"nodes", graph.nNodes()},
@@ -121,11 +179,7 @@ auto generateSamplesFixed(IMMGraph& graph, const SeedSet& seeds, const ProgramAr
     });
 
     for (std::size_t iter = 1; iter <= 20; iter++) {
-        for (std::size_t i = 0; i < sampleLimit; i++) {
-            // Uniformly generates a center
-            auto center = distCenter(gen);
-            makeSketchFast(prrCollection, graph, prrGraph, seeds, center);
-        }
+        makeSketchesFast(prrCollection, graph, seeds, sampleLimit, nThreads);
 
         // Check with a greedy selection & forward simulation
         auto selected = std::vector<std::size_t>();

@@ -114,6 +114,12 @@ args::CIAnyArgSet makeProgramArgs() {
                 "in SA-IMM or SA-RG-IMM algorithm"_desc,
             0.0
         },
+        {
+            {"j",                  "n-threads",       "nThreads"},
+            "u"_expects,
+            "Number of threads used in multi-threading task"_desc,
+            1
+        }
     };
 
     return A;
