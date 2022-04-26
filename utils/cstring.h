@@ -14,32 +14,9 @@
 #include <compare>
 #include <limits>
 #include "assert.h"
+#include "ctype.h"
 
 namespace utils::cstr {
-    /*!
-     * @brief Converts a character 'a'-'z' to upper bound, others remain the same.
-     *
-     * Similar to std::toupper in <cctypes>, but with constexpr support.
-     *
-     * @param c The character to convert
-     * @return The converted character
-     */
-    inline constexpr unsigned char toupper(unsigned char c) {
-        return (c >= 'a' && c <= 'z') ? c + 'A' - 'a' : c;
-    }
-
-    /*!
-     * @brief Converts a character 'A'-'Z' to lower bound, others remain the same.
-     *
-     * Similar to std::tolower in <cctypes>, but with constexpr support.
-     *
-     * @param c The character to convert
-     * @return The converted character
-     */
-    inline constexpr unsigned char tolower(unsigned char c) {
-        return (c >= 'A' && c <= 'Z') ? c + 'a' - 'A' : c;
-    }
-
     /*!
      * @brief Gets the length of a C-style string str.
      *

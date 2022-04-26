@@ -578,7 +578,9 @@ inline IMMGraph readGraph(std::istream& in) {
     std::size_t from, to;
     double p, pBoost;
     for (; in >> from >> to >> p >> pBoost; ) {
-        assert(from < V && to < V);
+        if (from >= V || to >= V) {
+            throw std::out_of_range("invalid node index: from >= V or to >= V");
+        }
         graph.fastAddLink(IMMLink(from, to, p, pBoost));
     }
     return graph;
