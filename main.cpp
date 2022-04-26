@@ -75,7 +75,8 @@ std::string makeMinimumResult(
     return res;
 }
 
-auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes, std::size_t simTimes) {
+auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes,
+                           std::size_t simTimes, std::size_t nThreads) {
     constexpr std::size_t nSteps = 20;
 
     auto res = std::vector<SimResult>{};
@@ -87,7 +88,7 @@ auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResul
             continue;
         }
         last = k;
-        auto simRes = simulate(graph, seeds, immRes.boostedNodes | vs::take(k), simTimes);
+        auto simRes = simulate(graph, seeds, immRes.boostedNodes | vs::take(k), simTimes, nThreads);
         LOG_INFO(format("Simulation result with first {} boosted nodes: {}", k, simRes));
         res.push_back(simRes);
     }
@@ -102,6 +103,7 @@ int mainWorker(int argc, char** argv) {
     LOG_INFO("Arguments: " + toString(args));
 
     auto property = args["priority"].get<NodePriorityProperty>();
+    auto nThreads = args["n-threads"].get<std::size_t>();
 
     if (args.cis["algo"] == "greedy") {
         auto res = greedy(graph, seeds, args);
@@ -117,7 +119,7 @@ int mainWorker(int argc, char** argv) {
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
-        auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"]);
+        auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"], nThreads);
         //todo
     }
     else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
@@ -129,7 +131,7 @@ int mainWorker(int argc, char** argv) {
 
         for (std::size_t i: {0, 1}) {
             LOG_INFO(format("Starts simulation of {}", res.labels[i]));
-            auto simRes = simulateForEachPrefix(graph, seeds, res[i], args.u["testTimes"]);
+            auto simRes = simulateForEachPrefix(graph, seeds, res[i], args.u["testTimes"], nThreads);
         }
     }
     else {

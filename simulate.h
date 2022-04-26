@@ -6,6 +6,7 @@
 #define DAWNSEEKER_SIMULATE_H
 
 #include "immbasic.h"
+#include <future>
 #include <queue>
 
 struct SimResultItem {
@@ -154,7 +155,7 @@ SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&&
 }
 
 /*!
- * @brief Simulates message propagation with given boosted nodes.
+ * @brief Simulates message propagation with given boosted nodes, with multi-threading support.
 
  * Simulation repeats for T times and the average is taken as result.
  * See simulateBoostedOnce for details.
@@ -163,6 +164,7 @@ SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&&
  * @param seeds The seed set
  * @param boostedNodes The list of boosted nodes
  * @param simTimes T, How many times to simulate
+ * @param nThreads How many threads used for simulation
  * @return Total gain, positive gain and negative gain in average
  */
 template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
@@ -170,17 +172,37 @@ SimResultItem simulateBoosted(
         IMMGraph& graph,
         const SeedSet& seeds,
         Range&& boostedNodes,
-        std::size_t simTimes) {
-    auto res = SimResultItem{};
-    for (std::size_t i = 0; i != simTimes; i++) {
-        res += simulateBoostedOnce(graph, seeds, boostedNodes);
+        std::size_t simTimes,
+        std::size_t nThreads = 1) {
+    // simTimesHere = Number of simulation times dispatched for current task worker
+    auto func = [&](std::size_t simTimesHere) {
+        auto res = SimResultItem{};
+        for (std::size_t i = 0; i != simTimesHere; i++) {
+            res += simulateBoostedOnce(graph, seeds, boostedNodes);
+        }
+        return res;
+    };
+
+    auto tasks = std::vector<std::future<SimResultItem>>{};
+    for (std::size_t i = 0; i < nThreads; i++) {
+        // Current task worker performs simulations with index in [first, last)
+        auto first = simTimes * i / nThreads;
+        auto last = simTimes * (i + 1) / nThreads;
+        tasks.emplace_back(std::async(std::launch::async, func, last - first));
     }
+
+    auto res = SimResultItem{};
+    // Sums up
+    for (std::size_t i = 0; i < nThreads; i++) {
+        res += tasks[i].get();
+    }
+    // ... and then takes the average
     res /= simTimes;
     return res;
 }
 
 /*!
- * @brief Simulates message propagation with and without given boosted nodes.
+ * @brief Simulates message propagation with and without given boosted nodes, with multi-threading support.
  *
  * Simulation repeats for T times with boosted nodes and without boosted nodes respectively.
  * See simulateBoosted for details.
@@ -189,6 +211,7 @@ SimResultItem simulateBoosted(
  * @param seeds The seed set
  * @param boostedNodes The list of boosted nodes
  * @param simTimes T, How many times to simulate
+ * @param nThreads How many threads used for simulation
  * @return Simulation result with boosted nodes, without boosted nodes, and their difference
  */
 template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
@@ -196,10 +219,11 @@ SimResult simulate(
         IMMGraph& graph,
         const SeedSet& seeds,
         Range&& boostedNodes,
-        std::size_t simTimes) {
+        std::size_t simTimes,
+        std::size_t nThreads = 1) {
     auto res = SimResult{};
-    res.withBoosted = simulateBoosted(graph, seeds, boostedNodes, simTimes);
-    res.withoutBoosted = simulateBoosted(graph, seeds, vs::empty<std::size_t>, simTimes);
+    res.withBoosted = simulateBoosted(graph, seeds, boostedNodes, simTimes, nThreads);
+    res.withoutBoosted = simulateBoosted(graph, seeds, vs::empty<std::size_t>, simTimes, nThreads);
     res.diff = res.withBoosted - res.withoutBoosted;
     return res;
 }

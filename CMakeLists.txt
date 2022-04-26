@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_FLAGS_RELEASE "-O3")
 
 if (UNIX)
-link_libraries(fmt)
+link_libraries(fmt pthread)
 endif()
 
 include_directories(.)

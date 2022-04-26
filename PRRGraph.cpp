@@ -230,11 +230,11 @@ void calculateCenterStateToFast(PRRGraph& prrGraph)
     }
     // As the default order in std::priority_queue, 
     //  nodes with the highest maxDistP is at the top
-    static auto compByDistA = [](const PRRNode* A, const PRRNode* B) {
+    auto compByDistA = [](const PRRNode* A, const PRRNode* B) {
         return A->maxDistP < B->maxDistP; 
     };
     // Initializes the priority-queue with {center},
-    static auto Q = std::priority_queue<PRRNode*, std::vector<PRRNode*>, decltype(compByDistA)>();
+    auto Q = std::priority_queue<PRRNode*, std::vector<PRRNode*>, decltype(compByDistA)>();
     // If center node is Cr, and Cr > Ca+,
     //  then Ca+ message must come earlier than Cr.
     // Otherwise, Ca+ message should come earlier than or in the same round as Cr.
@@ -287,7 +287,7 @@ NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, s
     }
 
     // vis[u] = whether the node u has been pushed to the queue
-    static auto vis = std::vector<bool>();
+    auto vis = std::vector<bool>();
     vis.assign(maxIndex + 1, false);
 
     auto Q = std::queue<PRRNode*>({&vNode});

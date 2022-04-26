@@ -55,7 +55,7 @@ void makeSketchFast(PRRGraphCollection& prrCollection, IMMGraph& graph, PRRGraph
 void makeSketchesFast(PRRGraphCollection& prrCollection, IMMGraph& graph,
                       const SeedSet& seeds, std::size_t nSamples, std::size_t nThreads) {
     // nSamplesHere = Number of samples dispatched for this thread
-    auto func = [&](std::size_t nSamplesHere) {
+    auto func = [](IMMGraph& graph, const SeedSet& seeds, std::size_t nSamplesHere) {
         auto collection = PRRGraphCollection(graph.nNodes(), seeds);
         auto prrGraph = PRRGraph{{
                 {"nodes", graph.nNodes()},
@@ -79,7 +79,8 @@ void makeSketchesFast(PRRGraphCollection& prrCollection, IMMGraph& graph,
         std::size_t first = nSamples * i / nThreads;
         std::size_t last = nSamples * (i + 1) / nThreads;
         // Dispatches the task to generate (last - first) samples
-        tasks.emplace_back(std::async(std::launch::async, func, static_cast<std::size_t>(last - first)));
+        tasks.emplace_back(std::async(std::launch::async, func,
+                                      std::ref(graph), std::cref(seeds), static_cast<std::size_t>(last - first)));
     }
 
     // Merges all the results
@@ -178,20 +179,20 @@ auto generateSamplesFixed(IMMGraph& graph, const SeedSet& seeds, const ProgramAr
         {"maxIndex", graph.nNodes()}
     });
 
-    for (std::size_t iter = 1; iter <= 20; iter++) {
+    for (std::size_t iter = 1; iter <= 10; iter++) {
         makeSketchesFast(prrCollection, graph, seeds, sampleLimit, nThreads);
 
         // Check with a greedy selection & forward simulation
         auto selected = std::vector<std::size_t>();
         prrCollection.select(args.u["k"], std::back_inserter(selected));
 
-        auto simResult = simulate(graph, seeds, selected, args.u["test-times"]);
+        auto simResult = simulate(graph, seeds, selected, args.u["test-times"], nThreads);
         LOG_INFO(format("Simulation result after {} samples: {}", sampleLimit * iter, simResult));
     }
 
     return GenerateSamplesResult{
         .prrCollection = std::move(prrCollection),
-        .prrCount = 20 * sampleLimit
+        .prrCount = 10 * sampleLimit
     };
 }
 
@@ -203,8 +204,8 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args)
 
     auto res = IMMResult();
     auto timer = Timer();
-    //auto [prrCollection, prrCount] = generateSamples(graph, seeds, args);
-    auto [prrCollection, prrCount] = generateSamplesFixed(graph, seeds, args);
+    auto [prrCollection, prrCount] = generateSamples(graph, seeds, args);
+    //auto [prrCollection, prrCount] = generateSamplesFixed(graph, seeds, args);
 
     LOG_INFO(format("PR_IMM: Finished generating PRR-sketches. Time used = {:.3f} sec.",
         timer.elapsed().count()));
