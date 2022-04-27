@@ -102,6 +102,7 @@ void makeSketchSlow(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, s
 auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args)
 {
     auto LB = double{ 1.0 };
+    // Count of PRR-sketches already generated
     auto prrCount = std::size_t{ 0 }; 
 
     auto prrCollection = PRRGraphCollection(args["n"].get<std::size_t>(), seeds);
@@ -126,9 +127,13 @@ auto generateSamples(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& a
         theta *= 2.0;
         // minS(i) = minS(0) / 2^i
         minS /= 2.0;
-
-        makeSketchesFast(prrCollection, graph, seeds, (std::size_t)theta - prrCount, nThreads);
-        prrCount = (std::size_t)theta;
+        // Number of samples till this iteration takes minimum of the following two constraints:
+        //  (1) theta(i)
+        //  (2) sample limit
+        auto nSamples = (std::size_t)std::min(theta, (double)sampleLimit) - prrCount;
+        // Generates with multi-threading support
+        makeSketchesFast(prrCollection, graph, seeds, nSamples, nThreads);
+        prrCount += nSamples;
 
         // Stops early if reaches limit
         if (prrCount >= sampleLimit) {
