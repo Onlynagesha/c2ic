@@ -176,9 +176,11 @@ SimResultItem simulateBoosted(
         std::size_t nThreads = 1) {
     // simTimesHere = Number of simulation times dispatched for current task worker
     auto func = [&](std::size_t simTimesHere) {
+        // Copying the graph is necessary since threads shall not influence each other.
+        auto graphCopy = graph;
         auto res = SimResultItem{};
         for (std::size_t i = 0; i != simTimesHere; i++) {
-            res += simulateBoostedOnce(graph, seeds, boostedNodes);
+            res += simulateBoostedOnce(graphCopy, seeds, boostedNodes);
         }
         return res;
     };
