@@ -120,7 +120,8 @@ int mainWorker(int argc, char** argv) {
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
         auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"], nThreads);
-        //todo
+        //auto simResult = simulate(graph, seeds, res.boostedNodes, args.u["test-times"], nThreads);
+        //LOG_INFO(format("Simulation result with {} boosted nodes: {}", args.u["k"], simResult));
     }
     else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);

@@ -184,7 +184,7 @@ auto generateSamplesFixed(IMMGraph& graph, const SeedSet& seeds, const ProgramAr
         {"maxIndex", graph.nNodes()}
     });
 
-    for (std::size_t iter = 1; iter <= 10; iter++) {
+    for (std::size_t iter = 1; iter <= 20; iter++) {
         makeSketchesFast(prrCollection, graph, seeds, sampleLimit, nThreads);
 
         // Check with a greedy selection & forward simulation

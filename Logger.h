@@ -10,6 +10,7 @@
 #include <source_location>
 #include <string>
 #include <syncstream>
+#include <vector>
 
 namespace logger {
     enum class LogLevel { Debug, Info, Warning, Error, Critical };
@@ -154,12 +155,15 @@ namespace logger {
                 buffer, sizeof(buffer), formatter.time.c_str(), std::localtime(&timeValue)
             );
 #endif
+            // Use std::filesystem::path as the intermediate
+            //  so that file name displayed does not contain the full path
             auto path = fs::path(loc.file_name());
             std::osyncstream(out)
-                    << format(formatterString, buffer, toString(level), _id,
-                              path.filename().string(), loc.line(),
-                              loc.function_name()
-                              )
+                    << FORMAT_NAMESPACE::vformat(
+                            formatterString, FORMAT_NAMESPACE::make_format_args(
+                                    buffer, toString(level), _id,
+                                    path.filename().string(), loc.line(),
+                                    loc.function_name()))
                     << content << std::endl;
         }
 
@@ -205,7 +209,7 @@ namespace logger {
 
     public:
         // Adds a logger via a shared_ptr
-        // Fails if another logger WITH the same _id is already added
+        // Fails if another logger with the same _id is already added
         // Returns: whether the logger is added successfully
         static bool add(std::shared_ptr<Logger> logger) {
             auto it = findLogger(logger->id());
@@ -216,7 +220,7 @@ namespace logger {
             return true;
         }
 
-        // Removes the logger WITH specified _id
+        // Removes the logger with specified _id
         // Fails if the logger does not exist
         // Returns: whether the logger is removed successfully
         static bool remove(const std::string& id) {
@@ -245,7 +249,7 @@ namespace logger {
             }
             else {
                 std::cerr << format(
-                        "WARNING on Logger::log: Logger WITH _id '{}' is not found.", id
+                        "WARNING on Logger::log: Logger with _id '{}' is not found.", id
                         ) << std::endl;
             }
         }
