@@ -75,12 +75,12 @@ std::string makeMinimumResult(
     return res;
 }
 
-auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes,
+auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const std::vector<std::size_t>& boostedNodes,
                            std::size_t simTimes, std::size_t nThreads) {
     constexpr std::size_t nSteps = 20;
 
     auto res = std::vector<SimResult>{};
-    auto r = std::pow((double)immRes.boostedNodes.size() + 1e-6, 1.0 / (double)(nSteps - 1));
+    auto r = std::pow((double)boostedNodes.size() + 1e-6, 1.0 / (double)(nSteps - 1));
     auto last = std::size_t{0};
     for (std::size_t i = 0; i < nSteps; i++) {
         auto k = static_cast<std::size_t>(std::pow(r, i));
@@ -88,11 +88,16 @@ auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResul
             continue;
         }
         last = k;
-        auto simRes = simulate(graph, seeds, immRes.boostedNodes | vs::take(k), simTimes, nThreads);
+        auto simRes = simulate(graph, seeds, boostedNodes | vs::take(k), simTimes, nThreads);
         LOG_INFO(format("Simulation result with first {} boosted nodes: {}", k, simRes));
         res.push_back(simRes);
     }
     return res;
+}
+
+auto simulateForEachPrefix(IMMGraph& graph, const SeedSet& seeds, const IMMResult& immRes,
+        std::size_t simTimes, std::size_t nThreads) {
+    simulateForEachPrefix(graph, seeds, immRes.boostedNodes, simTimes, nThreads);
 }
 
 int mainWorker(int argc, char** argv) {
@@ -107,19 +112,18 @@ int mainWorker(int argc, char** argv) {
 
     if (args.cis["algo"] == "greedy") {
         auto res = greedy(graph, seeds, args);
-        LOG_INFO("Minimum result with greedy:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
     } else if (args.cis["algo"] == "pagerank" || args.cis["algo"] == "page-rank") {
         auto res = pageRank(graph, seeds, args);
-        LOG_INFO("Minimum result with PageRank:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
+        auto simResults = simulateForEachPrefix(graph, seeds, res.boostedNodes, args.u["test-times"], nThreads);
     } else if (args.cis["algo"] == "maxdegree" || args.cis["algo"] == "max-degree") {
         auto res = maxDegree(graph, seeds, args);
-        LOG_INFO("Minimum result with max-degree:\n" + makeMinimumResult(graph, res.boostedNodes, res.result));
+        auto simResults = simulateForEachPrefix(graph, seeds, res.boostedNodes, args.u["test-times"], nThreads);
     } else if (args.cis["algo"] == "pr-imm" || property.satisfies("m-s")) {
         auto res = PR_IMM(graph, seeds, args);
         LOG_INFO(format("PR-IMM result: {}", toString(res, 4)));
         LOG_INFO("Details:\n" + dumpResult(graph, res));
 
-        auto simResults = simulateForEachPrefix(graph, seeds, res, args.u["test-times"], nThreads);
+        auto simResults = simulateForEachPrefix(graph, seeds, res.boostedNodes, args.u["test-times"], nThreads);
         //auto simResult = simulate(graph, seeds, res.boostedNodes, args.u["test-times"], nThreads);
         //LOG_INFO(format("Simulation result with {} boosted nodes: {}", args.u["k"], simResult));
     }
@@ -132,7 +136,9 @@ int mainWorker(int argc, char** argv) {
 
         for (std::size_t i: {0, 1}) {
             LOG_INFO(format("Starts simulation of {}", res.labels[i]));
-            auto simRes = simulateForEachPrefix(graph, seeds, res[i], args.u["testTimes"], nThreads);
+            //auto simRes = simulateForEachPrefix(graph, seeds, res[i], args.u["testTimes"], nThreads);
+            auto simRes = simulate(graph, seeds, res[i].boostedNodes, args.u["test-times"], nThreads);
+            LOG_INFO("Result: " + toString(simRes));
         }
     }
     else {

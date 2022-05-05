@@ -508,7 +508,7 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args
 
 struct GreedyResult {
     std::vector<std::size_t> boostedNodes;
-    SimResult result;
+    //SimResult result;
 };
 
 /*!

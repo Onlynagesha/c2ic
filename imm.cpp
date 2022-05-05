@@ -368,7 +368,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& ar
                         i + 1, v, gainV[v], timer.elapsed().count()));
     }
 
-    res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
+    //res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
     return res;
 }
 
@@ -397,7 +397,7 @@ GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const
     auto k = std::min<std::size_t>(args.u["k"], graph.nNodes() - seeds.size());
     auto res = GreedyResult{};
     res.boostedNodes.assign(indices.begin(), indices.begin() + k);
-    res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
+    //res.result = simulate(graph, seeds, res.boostedNodes, args.u["test-times"]);
 
     return res;
 }
