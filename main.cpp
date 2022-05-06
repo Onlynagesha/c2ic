@@ -108,6 +108,8 @@ int mainWorker(int argc, char** argv) {
     LOG_INFO("Arguments: " + toString(args));
 
     auto property = args["priority"].get<NodePriorityProperty>();
+    LOG_INFO("Priority array = " + utils::join(property.priority, ", ", "{", "}"));
+    LOG_INFO("Priority property: " + property.dump());
     auto nThreads = args["n-threads"].get<std::size_t>();
 
     if (args.cis["algo"] == "greedy") {

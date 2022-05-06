@@ -6,7 +6,9 @@
 #include "Timer.h"
 #include <concepts>
 #include <future>
+#include <mutex>
 #include <numbers>
+#include <numeric>
 #include <random>
 
 struct GenerateSamplesResult {
@@ -90,7 +92,7 @@ void makeSketchesFast(PRRGraphCollection& prrCollection, IMMGraph& graph,
 }
 
 // No constraints on monotonicity and sub-modularity
-void makeSketchSlow(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center) {
+void makeSketchSlow(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center) {
     // Gets a PRR-sketch with the specified center
     samplePRRSketch(graph, prrGraph, seeds, center);
     // Calculates each gain(v; prrGraph, center) for v in prrGraph
@@ -222,17 +224,51 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args)
     return res; 
 }
 
+auto getCenterList(IMMGraph& graph, const SeedSet& seeds, std::size_t distLimit) {
+    auto res = std::vector<std::size_t>();
+
+    if (distLimit >= graph.nNodes()) {
+        res.resize(graph.nNodes());
+        std::iota(res.begin(), res.end(), 0);
+        return res;
+    }
+
+    // BFS Initialization
+    auto Q = std::queue<std::size_t>();
+    for (auto& node: graph.nodes()) {
+        node.dist = utils::halfMax<int>;
+    }
+    utils::ranges::concatForEach([&graph, &Q](const std::size_t& v) {
+        Q.push(v);
+        graph[v].dist = 0;
+    }, seeds.Sa(), seeds.Sr());
+
+    for (; !Q.empty(); Q.pop()) {
+        auto cur = Q.front();
+
+        for (auto& [to, link]: graph.fastLinksFrom(cur)) {
+            if (to.dist == utils::halfMax<int>) {
+                to.dist = graph[cur].dist + 1;
+
+                if (to.dist <= distLimit) {
+                    Q.push(index(to));
+                    // Picks all the nodes with 1 <= distance <= distLimit
+                    res.push_back(index(to));
+                }
+            }
+        }
+    }
+
+    return res;
+}
+
 IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& args) {
     // Prepare parameters
     setNodeStateGain(args["lambda"].get<double>());
     setNodeStatePriority(args["priority"].get<NodePriorityProperty>().priority);
 
-    auto prrGraph = PRRGraph({
-        {"nodes", graph.nNodes()},
-        {"links", graph.nLinks()},
-        {"maxIndex", graph.nNodes()}
-    });
     auto prrCollection = PRRGraphCollectionSA(graph.nNodes(), args["gain-threshold-sa"].get<double>(), seeds);
+    auto finishCount = std::size_t{0};
     bool usesRandomGreedy = args.cis["algo"] == "sa-rg-imm" || !NodePriorityProperty::current().satisfies("m");
 
     // Random greedy for non-monotonic cases
@@ -243,31 +279,67 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const ProgramArgs& ar
 
     auto timer = Timer();
     auto logPerPercentage = args["log-per-percentage"].get<double>();
+    auto nThreads = args.u["nThreads"];
 
-    for (std::size_t v = 0; v != graph.nNodes(); v++) {
-        // curGainsByBoosted[s] = How much gain to current center node v if s is chosen as one boosted node
-        auto curGainsByBoosted = std::vector<double>(graph.nNodes());
+    auto centerCandidates = getCenterList(graph, seeds, args.u["sample-dist-limit-sa"]);
+    LOG_INFO(format("#Candidates of center node: {} of {} ({:.2f}%)",
+                    centerCandidates.size(), graph.nNodes(), 100.0 * centerCandidates.size() / graph.nNodes()));
+    LOG_DEBUG(format("First 100 candidates: {}", utils::join(centerCandidates | vs::take(100), ", ", "{", "}")));
 
-        for (std::size_t j = 0; j < theta; j++) {
-            makeSketchSlow(graph, prrGraph, seeds, v);
-            for (const auto& node: prrGraph.nodes()) {
-                curGainsByBoosted[index(node)] += gain(node.centerStateTo) - gain(prrGraph.centerState);
+    auto update = [&](std::size_t v, const std::vector<double>& curGainsByBoosted) {
+        static auto mtx = std::mutex{};
+        {
+            auto lock = std::scoped_lock(mtx);
+            prrCollection.add(v, curGainsByBoosted);
+
+            double r0 = 100.0 * (double)finishCount       / (double)centerCandidates.size();
+            double r1 = 100.0 * (double)(finishCount + 1) / (double)centerCandidates.size();
+            if (std::floor(r0 / logPerPercentage) != std::floor(r1 / logPerPercentage)) {
+                LOG_INFO(format("SA_IMM_LB: {:.1f}% finished. "
+                                "Total gain records added = {}. "
+                                "Total time elapsed = {:.3f} sec.",
+                                r1 + 1e-6, prrCollection.nTotalRecords(), timer.elapsed().count()));
             }
-        }
-        // Takes the average
-        for (auto& c: curGainsByBoosted) {
-            c /= (double)theta;
-        }
-        prrCollection.add(v, curGainsByBoosted);
 
-        double r0 = 100.0 * (double)v       / (double)graph.nNodes();
-        double r1 = 100.0 * (double)(v + 1) / (double)graph.nNodes();
-        if (std::floor(r0 / logPerPercentage) != std::floor(r1 / logPerPercentage)) {
-            LOG_INFO(format("SA_IMM_LB: {:.1f}% finished. "
-                             "Total gain records added = {}. "
-                             "Total time elapsed = {:.3f} sec.",
-                             r1 + 1e-6, prrCollection.nTotalRecords(), timer.elapsed().count()));
+            finishCount += 1;
         }
+    };
+
+    auto func = [&](std::size_t firstIndex, std::size_t lastIndex) {
+        auto prrGraph = PRRGraph({
+                 {"nodes", graph.nNodes()},
+                 {"links", graph.nLinks()},
+                 {"maxIndex", graph.nNodes()}
+         });
+
+        for (std::size_t i = firstIndex; i != lastIndex; i++) {
+            auto v = centerCandidates[i];
+            // curGainsByBoosted[s] = How much gain to current center node v if s is chosen as one boosted node
+            auto curGainsByBoosted = std::vector<double>(graph.nNodes());
+
+            for (std::size_t j = 0; j < theta; j++) {
+                makeSketchSlow(graph, prrGraph, seeds, v);
+                for (const auto& node: prrGraph.nodes()) {
+                    double delta = gain(node.centerStateTo) - gain(prrGraph.centerState);
+                    curGainsByBoosted[index(node)] += delta;
+                }
+            }
+            // Takes the average
+            for (auto& c: curGainsByBoosted) {
+                c /= (double)theta;
+            }
+            update(v, curGainsByBoosted);
+        }
+    };
+
+    auto tasks = std::vector<std::future<void>>();
+    for (std::size_t i = 0; i < nThreads; i++) {
+        auto first = centerCandidates.size() * i       / nThreads;
+        auto last  = centerCandidates.size() * (i + 1) / nThreads;
+        tasks.emplace_back(std::async(std::launch::async, func, first, last));
+    }
+    for (auto& t: tasks) {
+        t.get();
     }
 
     LOG_INFO(format("Dump PRR-sketch collection for SA algorithm: {}", prrCollection.dump()));

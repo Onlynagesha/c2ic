@@ -11,7 +11,7 @@
 * prrGraph is an empty graph initially.
 * prrGraph should be preserved before this call
 */
-int getLimitDist(PRRGraph& prrGraph, IMMGraph& graph, const SeedSet& seeds, std::size_t center)
+int getLimitDist(PRRGraph& prrGraph, const IMMGraph& graph, const SeedSet& seeds, std::size_t center)
 {
     auto Q = std::queue<std::size_t>({ center });
     // Add initial node
@@ -105,7 +105,7 @@ void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
 /*
 * Step 2: get the PRR-sketch sub-graph, all the nodes within limitDist
 */
-void samplePRRSketch(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center)
+void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center)
 {
     // First resets all the link states
     IMMLink::refreshAllStates();
@@ -146,7 +146,7 @@ void samplePRRSketch(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, 
     simulateNoBoost(prrGraph, seeds);
 }
 
-PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t center) 
+PRRGraph samplePRRSketch(const IMMGraph& graph, const SeedSet& seeds, std::size_t center)
 {
     // Creates an empty graph
     auto prrGraph = PRRGraph({

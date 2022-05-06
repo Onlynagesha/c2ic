@@ -59,6 +59,12 @@ args::CIAnyArgSet makeProgramArgs() {
             utils::halfMax<std::size_t>
         },
         {
+            {"sample-dist-limit-sa", "sampleDistLimitSA"},
+            "u"_expects,
+            "The threshold of minimum distance from a sample center node to any of the seeds"_desc,
+            utils::halfMax<std::size_t>
+        },
+        {
             {"test-times",         "testTimes"},
             "u"_expects,
             "How many times to test each boosted node set by forward simulation"_desc,

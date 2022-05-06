@@ -354,6 +354,8 @@ private:
             std::size_t cur;
             if constexpr (how == HowToChoose::GreedyOne) {
                 cur = rs::max_element(totalGainsBy) - totalGainsBy.begin();
+                LOG_DEBUG(format("Selected node #{0}: index = {1}, totalGainsBy[{1}] = {2:.3f}",
+                                 i, cur, totalGainsBy[cur]));
             }
             else {
                 auto nCandidates = std::min(k, n - selected.size() - seeds.size());

@@ -60,7 +60,7 @@ struct PRRGraph: PRRGraphBase {
 *   v.dist:  the minimum distance from any seed node to v;
 *   v.state: the state of v without any boosted node (as one of Ca, Cr or None)
 */
-PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t center);
+PRRGraph samplePRRSketch(const IMMGraph& graph, const SeedSet& seeds, std::size_t center);
 
 /*
  * Creates a sample of PRR-sketch and writes the result to prrGraph
@@ -71,7 +71,7 @@ PRRGraph samplePRRSketch(IMMGraph& graph, const SeedSet& seeds, std::size_t cent
  *   { "maxIndex", |V| }
  * } where |V| and |E| are the number of nodes and indices of the whole graph respectively
  */
-void samplePRRSketch(IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center);
+void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center);
 
 /*
 * Calculates gain(v; prrGraph, center) for each v in prrGraph
