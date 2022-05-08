@@ -398,11 +398,11 @@ IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticAr
 
         auto resItem = IMMResultItem{};
         if (usesRandomGreedy) {
-            LOG_INFO(format("SA-IMM: Performs greedy selection with nSamples = {}, k = {}",
+            LOG_INFO(format("SA-RG-IMM: Performs random greedy with nSamples = {}, k = {}",
                             nSamples, args.k));
             resItem.totalGain = prrCollection.randomSelect(args.k, std::back_inserter(resItem.boostedNodes));
         } else {
-            LOG_INFO(format("SA-RG-IMM: Performs random greedy with nSamples = {}, k = {}",
+            LOG_INFO(format("SA-IMM: Performs greedy selection with nSamples = {}, k = {}",
                             nSamples, args.k));
             resItem.totalGain = prrCollection.select(args.k, std::back_inserter(resItem.boostedNodes));
         }
