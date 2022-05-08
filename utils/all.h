@@ -19,6 +19,7 @@
 #include "random.h"
 #include "ranges.h"
 #include "string.h"
+#include "Timer.h"
 #include "type_traits.h"
 #include "typeinfo.h"
 

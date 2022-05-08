@@ -7,10 +7,10 @@
 #include "immbasic.h"
 #include "utils/numeric.h"
 
-args::CIAnyArgSet makeProgramArgs() {
+ProgramArgs makeProgramArgs() {
     using namespace args::literals;
 
-    args::CIAnyArgSet A = {
+    ProgramArgs A = {
         {
             {"graph-path",         "graphPath"},
             "s"_expects,
@@ -29,7 +29,7 @@ args::CIAnyArgSet makeProgramArgs() {
         },
         {
             "priority",
-            "cis|?"_expects,
+            "cis"_expects,
             "Priority sequence of all the node states (Ca+, Ca, Cr and Cr-), "
                 "listed from highest to lowest, seperated by spaces, commas or '>'. "
                 "e.g. \"Ca+ , Ca > Cr   Cr-\""_desc,
@@ -43,26 +43,43 @@ args::CIAnyArgSet makeProgramArgs() {
         },
         {
             {"k",                  "n-boosted-nodes", "nBoostedNodes"},
-            "u"_expects,
-            "Number of boosted nodes to choose"_desc
+            "u|cis"_expects,
+            "Number of boosted nodes to choose, provided either as a single unsigned integer, "
+            "or a list of unsigned integers separated by spaces, commas or semicolons"_desc
         },
         {
             {"sample-limit",       "sampleLimit"},
             "u"_expects,
             "The maximum number of PRR-sketch samples"_desc,
-            utils::halfMax<std::size_t>
+            utils::halfMax<std::uintmax_t>
         },
         {
             {"sample-limit-sa",    "sampleLimitSA"},
             "u"_expects,
-            "The maximum number of PRR-sketch samples per center node in SA-IMM algorithm"_desc,
-            utils::halfMax<std::size_t>
+            "The maximum number of samples per center node in SA-IMM algorithm"_desc,
+            utils::halfMax<std::uintmax_t>
+        },
+        {
+            {"n-samples",          "nSamples"},
+            "u|cis"_expects,
+            "Fixed number of PRR-sketch samples in PR-IMM algorithm. "
+            "Provided either as a single unsigned integer, "
+            "or a list of unsigned integers separated by spaces, commas or semicolons"_desc,
+            0 // Default value: do not use fixed sample size
+        },
+        {
+            {"n-samples-sa",       "nSamplesSA"},
+            "u|cis"_expects,
+            "Fixed number of samples per center node in SA-IMM algorithm. "
+            "Provided either as a single unsigned integer, "
+            "or a list of unsigned integers separated by spaces, commas or semicolons"_desc,
+            0 // Default value: do not use fixed sample size
         },
         {
             {"sample-dist-limit-sa", "sampleDistLimitSA"},
             "u"_expects,
             "The threshold of minimum distance from a sample center node to any of the seeds"_desc,
-            utils::halfMax<std::size_t>
+            utils::halfMax<std::uintmax_t>
         },
         {
             {"test-times",         "testTimes"},
@@ -81,18 +98,6 @@ args::CIAnyArgSet makeProgramArgs() {
             "f"_expects,
             "Frequency of debug message during the algorithm (Used for debug logging)"_desc,
             5.0
-        },
-        {
-            "delta",
-            "f"_expects,
-            "Algorithm approximation ratio of regular greedy algorithm in PR-IMM and SA-IMM"_desc,
-            1.0 - 1.0 / ns::e
-        },
-        {
-            {"delta-rg",           "deltaRG"},
-            "f"_expects,
-            "Algorithm approximation ratio of random greedy algorithm in SA-RG-IMM"_desc,
-            1.0 / ns::e
         },
         {
             "ell",
@@ -131,105 +136,34 @@ args::CIAnyArgSet makeProgramArgs() {
     return A;
 }
 
-argparse::ArgumentParser makeArgParser(const args::CIAnyArgSet& A) {
+argparse::ArgumentParser makeArgParser(const ProgramArgs& A) {
     return args::makeParser(A, "C2IC Experiment Project");
 }
 
-args::CIAnyArgSet prepareProgramArgs(int argc, char** argv) {
+ProgramArgs prepareProgramArgs(int argc, char** argv) {
     auto argSet    = makeProgramArgs();
     auto argParser = makeArgParser(argSet);
     args::parse(argSet, argParser, argc, argv);
 
-    return std::move(argSet);
+    return argSet;
 }
 
-void prepareDerivedArgs(args::CIAnyArgSet& A, std::size_t n) {
-    using namespace args::literals;
+AlgorithmArgsPtr getAlgorithmArgs(std::size_t n, const ProgramArgs& args) {
+    auto algo = getAlgorithmLabel(args);
 
-    A["priority"] = NodePriorityProperty::of(A.cis["priority"]);
-
-    A.add({
-        {
-            "n",
-            "u"_expects,
-            "Number of nodes in the graph"_desc,
-            n
-        },
-        {
-            {"log2n", "log2(n)"},
-            "f"_expects,
-            "(Derived) log2(N) where N is the number of nodes"_desc,
-            std::log2(n)
-        },
-        {
-            {"lnN",   "ln(N)"},
-            "f"_expects,
-            "(Derived) ln(N) where N is the number of Nodes"_desc,
-            std::log(n)
-        },
-        {
-            {"lnCnk", "ln(C(n,k))", "ln(Cnk)"},
-            "f"_expects,
-            "(Derived) ln(C(N,k)) where N is the number of nodes, "
-                "k is the number of boosted nodes"_desc,
-            [](auto n, auto k) {
-                 long double res = 0.0;
-                 for (auto x  = n - k + 1; x <= n; x++) {
-                     res += std::log(x);
-                 }
-                 for (auto x = 2; x <= k; x++) {
-                     res -= std::log(x);
-                 }
-                 return res;
-             }(n, A.u["k"])
-        },
-    });
-
-    A["ell"] = A.f["ell"] * (1.0 + ns::ln2 / A.f["lnN"]);
-
-    auto getThetaSA = [&A](auto delta, auto kappa) {
-        return (2.0 + 2.0 * kappa / 3.0) *
-               (1.0 + delta + kappa) *
-               ((A.f["ell"] + 1.0) * A.f["lnN"] + ns::ln2) /
-               ((2.0 + delta) * std::pow(kappa, 3.0));
-    };
-
-    A.add(
-        "alpha",
-        "f"_expects,
-        "(Derived) Alpha in PR-IMM algorithm"_desc,
-        A.f["delta"] * std::sqrt(A.f["ell"] * A.f["lnN"] + ns::ln2)
-    ).add(
-        "beta",
-        "f"_expects,
-        "(Derived) Beta in PR-IMM algorithm"_desc,
-        std::sqrt(A.f["delta"] * (A.f["ell"] * A.f["lnN"] + A.f["lnCnk"] + ns::ln2))
-    ).add(
-        {"theta0", "theta0-pr", "theta0PR"},
-        "f"_expects,
-        "(Derived) Initial delta in PR-IMM algorithm"_desc,
-        (1.0 + ns::sqrt2 * A.f["epsilon"] / 3.0) *
-            (A.f["lnCnk"] + A.f["ell"] * A.f["lnN"] + std::log(A.f["log2N"])) /
-            std::pow(A.f["epsilon"], 2.0)
-    ).add(
-        {"kappa", "kappa-sa", "kappaSA"},
-        "f"_expects,
-        "(Derived) kappa in SA-IMM algorithm"_desc,
-        A.f["epsilon-sa"] / (2.0 * A.f["delta"] - A.f["epsilon-sa"])
-    ).add(
-        {"kappa-rg", "kappaRG", "kappa-sa-rg", "kappaSARG"},
-        "f"_expects,
-        "(Derived) kappa in SA-RG-IMM algorithm"_desc,
-        A.f["epsilon-sa"] / (2.0 * A.f["delta-rg"] - A.f["epsilon-sa"])
-    ).add(
-        {"theta-sa", "thetaSA", "theta0-sa", "theta0SA"},
-        "f"_expects,
-        "(Derived) theta in SA-IMM algorithm"_desc,
-        getThetaSA(A.f["delta"], A.f["kappa"])
-    ).add(
-        {"theta-sa-rg", "thetaSARG", "theta0-sa-rg", "theta0SARG"},
-        "f"_expects,
-        "(Derived) theta in SA-RG-IMM algorithm"_desc,
-        getThetaSA(A.f["delta-rg"], A.f["kappa-rg"])
-    );
+    switch (algo) {
+    case AlgorithmLabel::PR_IMM:
+        if (sampleSizeIsFixed(args, AlgorithmLabel::PR_IMM)) {
+            return std::make_unique<StaticArgs_PR_IMM>(n, args);
+        } else {
+            return std::make_unique<DynamicArgs_PR_IMM>(n, args);
+        }
+    case AlgorithmLabel::SA_IMM:
+    case AlgorithmLabel::SA_RG_IMM:
+        return std::make_unique<Args_SA_IMM>(n, args);
+    case AlgorithmLabel::Greedy:
+        return std::make_unique<GreedyArgs>(n, args);
+    default:
+        return std::make_unique<BasicArgs>(n, args);
+    }
 }

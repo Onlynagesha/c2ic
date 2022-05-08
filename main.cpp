@@ -131,7 +131,7 @@ int mainWorker(int argc, char** argv) {
     }
     else if (args.cis["algo"] == "sa-imm" || args.cis["algo"] == "sa-rg-imm" || property.satisfies("nS")) {
         auto res = SA_IMM(graph, seeds, args);
-        LOG_INFO("SA-IMM result: " + toString(res, 4, 4));
+        LOG_INFO("SA-IMM result: " + toString(res, 4));
         for (std::size_t i: {0, 1}) {
             LOG_INFO(format("Details of {}:\n{}", res.labels[i], res[i]));
         }

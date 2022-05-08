@@ -15,6 +15,7 @@
 #include <charconv>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include "cstring.h"
 #include "type_traits.h"
 
@@ -53,12 +54,14 @@ namespace utils {
      *
      * "String-like" including:
      *   - Instances of std::basic_string
+     *   - Instances of std::basic_string_view
      *   - CharT* or const CharT* where CharT is a character type
      *
      * @tparam T
      */
     template <class T>
     concept StringLike = TemplateInstanceOf<T, std::basic_string>
+    || TemplateInstanceOf<T, std::basic_string_view>
     || CharacterType<std::remove_cvref_t<std::remove_pointer_t<std::decay_t<T>>>>;
 
     /*!
@@ -242,7 +245,7 @@ namespace utils {
      */
     template <StringLike T>
     inline std::size_t stringLength(const T& str) noexcept {
-        if constexpr (TemplateInstanceOf<T, std::basic_string>) {
+        if constexpr (requires {str.length();}) {
             return str.length();
         } else {
             return cstr::strlen(toCString(str));
@@ -412,6 +415,34 @@ namespace utils {
         }
     }
 
+    namespace cstr {
+        /*!
+         * @brief Parses a value of specified type T from a string given as range [first, last).
+         * @tparam T The value type to be parsed
+         * @param first
+         * @param last
+         * @param args Additional arguments for parsing
+         * @return The parsed value
+         */
+        template <class T, class... Args>
+        T fromString(const char* first, const char* last, Args&&... args) {
+            return utils::fromString<T>(std::string_view{first, last}, std::forward<Args>(args)...);
+        }
+
+        /*!
+         * @brief Parses a value of specified type T from the string given as range [str, str + n)
+         * @tparam T The value type to be parsed
+         * @param str The string
+         * @param len Length of the string
+         * @param args Additional arguments for parsing
+         * @return The parsed value
+         */
+        template <class T, class... Args>
+        T fromString(const char* str, std::size_t len, Args&&... args) {
+            return utils::fromString<T>(std::string_view{str, str + len}, std::forward<Args>(args)...);
+        }
+    }
+
     /*!
      * @brief A delegate function for stricter parsing from a string to given value type
      *
@@ -436,8 +467,39 @@ namespace utils {
         return res;
     }
 
-    // Transforms to std::string, specialization to all std::basic_string types including std::string itself
-// Returns a const-reference if the argument is a left-value, copied/moved value otherwise
+    namespace cstr {
+        /*!
+         * @brief Parses a value of specified type T strictly from a string given as range [first, last).
+         *
+         * See utils::fromStringStrict for details.
+         *
+         * @tparam T The value type to be parsed
+         * @param first
+         * @param last
+         * @param args Additional arguments for parsing
+         * @return The parsed value
+         */
+        template <class T, class... Args>
+        T fromStringStrict(const char* first, const char* last, Args&&... args) {
+            return utils::fromStringStrict<T>(std::string_view{first, last}, std::forward<Args>(args)...);
+        }
+
+        /*!
+         * @brief Parses a value of specified type T strictly from a string given as range [str, str + n).
+         *
+         * See utils::fromStringStrict for details.
+         *
+         * @tparam T The value type to be parsed
+         * @param str The string
+         * @param len Length of the string
+         * @param args Additional arguments for parsing
+         * @return The parsed value
+         */
+        template <class T, class... Args>
+        T fromStringStrict(const char* str, std::size_t len, Args&&... args) {
+            return utils::fromStringStrict<T>(std::string_view{str, str + len}, std::forward<Args>(args)...);
+        }
+    }
 
     /*!
      * @brief Performs string conversion between two character traits. No change to contents.

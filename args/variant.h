@@ -99,9 +99,7 @@ namespace args {
         }
 
         [[nodiscard]] auto type() const {
-            return std::visit([]<class T>(const auto &) {
-                return getElementType<T>();
-            }, _value);
+            return getElementType(_value);
         }
 
         [[nodiscard]] const char *typeName() const {
@@ -110,7 +108,7 @@ namespace args {
 
         template<utils::StringLike T = std::string>
         [[nodiscard]] auto valueToString() const {
-            return utils::toString<T>(_value);
+            return toString(_value);
         }
 
         template <class T = std::string>

@@ -6,10 +6,7 @@
 #include "utils.h"
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <compare>
-#include <filesystem>
-#include <fstream>
 #include <random>
 #include <vector>
 
@@ -185,17 +182,29 @@ inline void setNodeStateGain(double lambda) {
     nodeStateGain[static_cast<int>(NodeState::CrMinus)] = 0.0;
 }
 
-/*
-* Sets the priority of each state
-* e.g. For the case Ca+ > Cr- > Cr > Ca,
-*       caPlus  = 3 (highest)
-*       ca      = 0 (lowest)
-*       cr      = 1 (2nd lowest)
-*       crMinus = 2 (2nd highest)
-*/
+/*!
+ * @brief Sets the priority of each node state and returns the priority array as result.
+ *
+ * The priority values shall be a permutation of [0, 1, 2, 3]. Higher value refers to higher priority.
+ *
+ * e.g. For the case Ca+ > Cr- > Cr > Ca,
+ *  - caPlus  = 3 (highest)
+ *  - ca      = 0 (lowest)
+ *  - cr      = 1 (2nd lowest)
+ *  - crMinus = 2 (2nd highest)
+ *
+ * @param caPlus Priority of Ca+
+ * @param ca Priority of Ca
+ * @param cr Priority of Cr
+ * @param crMinus Priority of Cr-
+ * @return The priority array
+ * @throw std::invalid_argument if the arguments do not satisfy the constraints above.
+ */
 inline NodeStatePriorityArray setNodeStatePriority(ReturnsValueTag, int caPlus, int ca, int cr, int crMinus) {
     // Checks the arguments to ensure they cover {0, 1, 2, 3}
-    assert(((1 << caPlus) | (1 << ca) | (1 << cr) | (1 << crMinus)) == 0b1111);
+    if (((1 << caPlus) | (1 << ca) | (1 << cr) | (1 << crMinus)) != 0b1111) {
+        throw std::invalid_argument("Input priority values are not a permutation of [0, 1, 2, 3]");
+    }
 
     auto dest = std::array<int, 5>{};
     dest[static_cast<int>(NodeState::None)] = -1;
@@ -207,28 +216,82 @@ inline NodeStatePriorityArray setNodeStatePriority(ReturnsValueTag, int caPlus, 
     return dest;
 }
 
+/*!
+ * @brief Sets the global node state priority.
+ *
+ * See setNodeStatePriority(caPlus, ca, cr, crMinus) for details.
+ *
+ * @param caPlus Priority of Ca+
+ * @param ca Priority of Ca
+ * @param cr Priority of Cr
+ * @param crMinus Priority of Cr-
+ * @throw std::invalid_argument if the arguments do not satisfy the constraints.
+ */
 inline void setNodeStatePriority(int caPlus, int ca, int cr, int crMinus) {
     nodeStatePriority = setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus);
 }
 
+/*!
+ * @brief Sets the global node state priority with given array.
+ * @param arr The priority array
+ */
 inline void setNodeStatePriority(const NodeStatePriorityArray& arr) {
     nodeStatePriority = arr;
 }
 
-// Properties of the node priority
+/*!
+ * @brief A class that contains properties of some node priority.
+ *
+ * Including:
+ *   - The priority array
+ *   - Whether the priority satisfies monotonicity and/or submodularity
+ *     (i.e. the objective function is monotonic and/or submodular)
+ */
 struct NodePriorityProperty {
-    NodeStatePriorityArray  priority;       // The priority array
+    NodeStatePriorityArray  array;          // The priority array
     bool                    monotonic;      // Is monotonicity satisfied
     bool                    submodular;     // Is sub-modularity satisfied
 
+    /*!
+     * @brief Gets the "upper bound" node state priority.
+     *
+     * Used in SA-IMM and SA-RG-IMM algorithms,
+     *  acquiring the upper bound fraction of objective function by performing PR-IMM algorithm
+     *  under this "upper bound" priority (which is monotonic & submodular).
+     *
+     * @return The NodePriorityProperty object of the upper bound.
+     */
+    static NodePriorityProperty upperBound() {
+        return of("Ca+ Cr- Cr Ca");
+    }
+
+    /*!
+     * @brief Gets a NodePriorityProperty object from given string.
+     *
+     * Format of input: permutation of `Ca+`, `Ca`, `Cr` and `Cr-`, separated by comma, space or `>`.
+     * Input is case-insensitive.
+     * e.g. `Ca+ > Ca > Cr > Cr-` or `cr+,cr,ca+,ca`.
+     *
+     * An exception is thrown for the following illegal cases:
+     *   - Duplicated state token, e.g. `Ca+ Ca+ Ca Cr Cr-`
+     *   - Unrecognized state token, e.g. `Cp+ Cp Cn- Cn`
+     *   - Too few tokens, e.g. `Ca+ Ca Cr`
+     *
+     * @param str The input string with given input
+     * @return The NodePriorityProperty object of given node state priority.
+     * @throw std::invalid_argument if the input string is invalid. See above for details.
+     */
     static NodePriorityProperty of(const utils::StringLike auto& str) {
         auto first = utils::toCString(str);
         auto last = first + utils::stringLength(str);
 
+        // Sets in the order 3, 2, 1, 0.
+        // arr[None] remains as -1.
         int nextPriority = 3;
         auto arr = NodeStatePriorityArray{};
         rs::fill(arr, -1);
 
+        // Checks duplication and then assigns arr[s] = p
         auto trySet = [&](NodeState s_, int p) {
             int s = (int)s_;
             if (arr[s] != -1) {
@@ -237,6 +300,7 @@ struct NodePriorityProperty {
             arr[s] = p;
         };
 
+        // Sets each token in order.
         utils::cstr::splitByEither(first, last, " ,>", [&](const char* token, std::size_t tokenLength) {
             if (nextPriority < 0) {
                 throw std::invalid_argument("Too much tokens (exactly 4 is required)");
@@ -251,10 +315,13 @@ struct NodePriorityProperty {
             } else if (utils::cstr::ci_strcmp(token, tokenLength, "Cr-", 3) == 0) {
                 trySet(NodeState::CrMinus, nextPriority--);
             } else {
-                throw std::invalid_argument("Unrecognized token: "s + std::string{token, tokenLength});
+                throw std::invalid_argument(
+                        "Unrecognized token other than 'Ca+', 'Ca', 'Cr' or 'Cr-': "s
+                        + std::string{token, tokenLength});
             }
         });
 
+        // Checks whether tokens are too few.
         if (nextPriority != -1) {
             throw std::invalid_argument("Too few tokens (exactly 3 is required)");
         }
@@ -262,11 +329,28 @@ struct NodePriorityProperty {
         return of(arr);
     }
 
-    static NodePriorityProperty of(int caPlus, int ca, int cr, int crMinus) noexcept{
+    /*!
+     * @brief Gets a NodePriorityProperty object from given node state priority values.
+     *
+     * See setNodeStatePriority(caPlus, ca, cr, crMinus) for details.
+     *
+     * @param caPlus Priority of Ca+
+     * @param ca Priority of Ca
+     * @param cr Priority of Cr
+     * @param crMinus Priority of Cr-
+     * @return The NodePriorityProperty object of given node state priority.
+     * @throw std::invalid_argument if the arguments do not satisfy the constraints.
+     */
+    static NodePriorityProperty of(int caPlus, int ca, int cr, int crMinus) {
         return of(setNodeStatePriority(returnsValue, caPlus, ca, cr, crMinus));
     }
 
-    static NodePriorityProperty of(const NodeStatePriorityArray& priority) noexcept {
+    /*!
+     * @brief Gets a NodePriorityProperty object from given node state priority array.
+     * @param priority The priority array
+     * @return The NodePriorityProperty object of given node state priority.
+     */
+    static NodePriorityProperty of(const NodeStatePriorityArray& priority) {
         auto oldPriority = nodeStatePriority;
         // Temporarily sets to current priority
         nodeStatePriority = priority;
@@ -277,16 +361,24 @@ struct NodePriorityProperty {
         return res;
     }
 
+    /*!
+     * @brief Gets a NodePriorityProperty object of the current node state priority.
+     * @return The NodePriorityProperty object of current node state priority.
+     */
     static NodePriorityProperty current() {
         using enum NodeState;
-        static auto greater = std::strong_ordering::greater;
+        constexpr auto greater = std::strong_ordering::greater;
 
-        auto res = NodePriorityProperty{.priority = nodeStatePriority, .monotonic = true, .submodular = false};
+        auto res = NodePriorityProperty{
+            .array = nodeStatePriority,
+            .monotonic = true,
+            .submodular = false
+        };
         // Non-monotonic cases
-        if (      (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater
-               || (Ca <=> CrMinus) == greater     && (CrMinus <=> CaPlus) == greater
-               || (CrMinus <=> CaPlus) == greater && (CaPlus <=> Cr) == greater
-               || (CrMinus <=> Ca) == greater     && (Ca <=> Cr) == greater) {
+        if (      (Ca <=> Cr) == greater          && (Cr <=> CaPlus) == greater         // (1) Ca  > Cr  > Ca+
+               || (Ca <=> CrMinus) == greater     && (CrMinus <=> CaPlus) == greater    // (2) Ca  > Cr- > Ca+
+               || (CrMinus <=> CaPlus) == greater && (CaPlus <=> Cr) == greater         // (3) Cr- > Ca+ > Cr
+               || (CrMinus <=> Ca) == greater     && (Ca <=> Cr) == greater) {          // (4) Cr- > Ca  > Cr
             res.monotonic = false;
         }
         // Sub-modular cases
@@ -304,18 +396,35 @@ struct NodePriorityProperty {
         return res;
     }
 
-    // Checks with given token sequence (e.g. "M - nS"). Tokens are case-insensitive
-    // "M":  expected to be monotonic
-    // "nM":                non-monotonic
-    // "S":  expected to be submodular
-    // "nS":                non-submodular
-    bool satisfies(const ci_string& str) {
+    /*!
+     * @brief Checks whether the node state satisfies the constraints given by input string.
+     *
+     * Input format: a sequence of tokens `M`, `nM`, `S` or `nS`
+     * (for monotonic, non-monotonic, submodular, non-submodular resp.),
+     * separated by space, comma, semicolon or hyphen.
+     *
+     * The input is case-insensitive.
+     * An exception is thrown if some token is unrecognized.
+     *
+     * e.g.
+     *   - `nM`: non-monotonic
+     *   - `M - S`: both monotonic and submodular
+     *   - `M, S; nM`: both monotonic, submodular and non-monotonic
+     *     (whose result is always false, syntactically correct by semantically senseless)
+     *
+     * @param str The input string.
+     * @return bool, whether all the constraints are satisfied.
+     * @throw std::invalid_argument if the input is invalid. See above for details.
+     */
+    [[nodiscard]] bool satisfies(const ci_string& str) const {
+        // Returns true if all the constraints are satisfied
+        bool res = true;
         // Tokens are split by either of the following delimiters
         static const char* delims = " ,-;";
         // {token, which value to check, expected value}
         static auto checkItems = {
                 std::tuple{"M",  &NodePriorityProperty::monotonic,  true},
-                std::tuple{"mM", &NodePriorityProperty::monotonic,  false},
+                std::tuple{"nM", &NodePriorityProperty::monotonic,  false},
                 std::tuple{"S",  &NodePriorityProperty::submodular, true},
                 std::tuple{"nS", &NodePriorityProperty::submodular, false}
         };
@@ -332,28 +441,52 @@ struct NodePriorityProperty {
                 if (token == token2b) {
                     matched = true;
                     if (this->*which != expected) {
-                        return false;
+                        // Returns false if any constraint is violated.
+                        res = false;
                     }
                 }
             }
             // If no match, then the token input is invalid
             if (!matched) {
-                std::cerr << "WARNING on NodePriorityProperty::satisfies: token '" << toString(token)
-                          << "' is not recognized. "
-                             "Use one of 'M', 'nM', 'S', 'nS' instead." << std::endl;
+                throw std::invalid_argument(
+                        "Unrecognized token other than 'M', 'nM', 'S' or 'nS': "s + utils::toString(token));
             }
         }
-        // All satisfied
-        return true;
+        return res;
     }
 
-    // Dumps as string
+    /*!
+     * @brief Dumps the information as string.
+     * @return A multi-line string, without trailing new-line character.
+     */
     [[nodiscard]] std::string dump() const {
-        return format("{}monotonic & {}submodular ({} - {})",
+        using enum NodeState;
+
+        // Dumps priority array
+        auto res = format("Priority values:\n");
+        for (auto s: {None, CaPlus, Ca, Cr, CrMinus}) {
+            res += format("    {:<4} => {}\n", toString(s), array[(int)s]);
+        }
+
+        // Dumps comparison matrix
+        res += format("Comparison matrix of L <=> R:\nL\\R  Ca+  Ca  Cr Cr-\n");
+        for (auto lhs: {CaPlus, Ca, Cr, CrMinus}) {
+            res += format("{:<4}", toString(lhs));
+            for (auto rhs: {CaPlus, Ca, Cr, CrMinus}) {
+                int c = compare(array, lhs, rhs);
+                res += format("{:>4}", c > 0 ? '>' : c == 0 ? '=' : '<');
+            }
+            res.push_back('\n');
+        }
+
+        // Dumps property
+        res += format("Property: {}monotonic & {}submodular ({} - {})",
                       monotonic ? "" : "non-",
                       submodular ? "" : "non-",
                       monotonic ? "M" : "nM",
                       submodular ? "S" : "nS");
+
+        return res;
     }
 };
 
@@ -412,6 +545,7 @@ public:
     [[nodiscard]] const auto& Sa() const {
         return _Sa;
     }
+
     [[nodiscard]] const auto& Sr() const {
         return _Sr;
     }
@@ -556,71 +690,5 @@ using IMMGraph = graph::Graph<
         graph::IdentityIndexMap,
         graph::tags::EnablesFastAccess::Yes
         >;
-
-/*
-* Reads the graph.
-* File format:
-* The first line contains two integers V, E, denoting number of nodes and links
-* Then E lines, each line contains 4 values u, v, p, pBoost
-*   indicating a directed link u -> v with probabilities p and pBoost
-*/
-inline IMMGraph readGraph(std::istream& in) {
-    auto graph = IMMGraph(graph::tags::reservesLater);
-
-    std::size_t V, E;
-    in >> V >> E;
-    graph.reserve({{"nodes", V}, {"links", E}});
-
-    for (std::size_t i = 0; i < V; i++) {
-        graph.fastAddNode(IMMNode(i));
-    }
-
-    std::size_t from, to;
-    double p, pBoost;
-    for (; in >> from >> to >> p >> pBoost; ) {
-        if (from >= V || to >= V) {
-            throw std::out_of_range("invalid node index: from >= V or to >= V");
-        }
-        graph.fastAddLink(IMMLink(from, to, p, pBoost));
-    }
-    return graph;
-}
-
-inline IMMGraph readGraph(const fs::path& path) {
-    auto fin = std::ifstream(path);
-    if (!fin.is_open()) {
-        throw std::invalid_argument("Graph file not found!");
-    }
-    return readGraph(fin);
-}
-
-/*
- * Reads the seed set.
- * File format:
- * The first line contains an integer Na, number of positive seeds.
- * The next line contains Na integers, indices of the positive seeds.
- * The third line contains an integer Nr, number of negative seeds.
- * The fourth line contains Nr integers, indices of the negative seeds
- */
-inline SeedSet readSeedSet(std::istream& in) {
-    std::size_t Na, Nr;
-    auto Sa = std::vector<std::size_t>();
-    auto Sr = std::vector<std::size_t>();
-
-    in >> Na;
-    for (std::size_t v, i = 0; i < Na; in >> v, Sa.push_back(v), i++);
-    in >> Nr;
-    for (std::size_t v, i = 0; i < Nr; in >> v, Sr.push_back(v), i++);
-
-    return {std::move(Sa), std::move(Sr)};
-}
-
-inline SeedSet readSeedSet(const fs::path& path) {
-    auto fin = std::ifstream(path);
-    if (!fin.is_open()) {
-        throw std::invalid_argument("Seed file not found!");
-    }
-    return readSeedSet(fin);
-}
 
 #endif //DAWNSEEKER_IMMBASIC_H

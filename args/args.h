@@ -142,21 +142,9 @@ namespace args {
 
         template <class T>
         auto getValueOr(const utils::StringLike auto& label, const T& alternative) const try {
-            return getValue(label);
+            return getValue<T>(label);
         } catch (...) {
             return alternative;
-        }
-
-        template <class T>
-        auto& operator ()(const utils::StringLike auto& label, T& dest) const {
-            dest = getValue<T>(label);
-            return dest;
-        }
-
-        template <class T>
-        auto& operator ()(const utils::StringLike auto& label, T& dest, const T& alternative) const {
-            dest = getValueOr(label, alternative);
-            return dest;
         }
 
         auto all() {
@@ -165,6 +153,10 @@ namespace args {
 
         auto all() const {
             return _variants | std::views::transform([](const auto& p) -> const auto& { return *p; });
+        }
+
+        bool contains(const utils::StringLike auto& label) const {
+            return _variantMap.contains(utils::toCString(label));
         }
 
         template <class TraitsOrStr = std::string>

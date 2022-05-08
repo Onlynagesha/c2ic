@@ -171,12 +171,40 @@ namespace utils::cstr {
         constexpr auto operator ()(const char* A, std::size_t nA, const char* B, std::size_t nB) const {
             return operator ()(A, A + nA, B, B + nB);
         }
+
+        /*!
+         * @brief Compares two C-style strings A and B case-insensitively, with constexpr support.
+         *
+         * The range of string A is provided as [A, lastA). String B is provided simply as the head pointer.
+         *
+         * @param A
+         * @param lastA End position of string A
+         * @param B
+         * @return 3-way comparison result as std::strong_ordering
+         */
+        constexpr auto operator ()(const char* A, const char* lastA, const char* B) const {
+            return operator ()(A, lastA, B, B + cstr::strlen(B));
+        }
+
+        /*!
+         * @brief Compares two C-style strings A and B case-insensitively, with constexpr support.
+         *
+         * The range of string A is provided as [A, A + nA). String B is provided simply as the head pointer.
+         *
+         * @param A
+         * @param nA Length of string A
+         * @param B
+         * @return 3-way comparison result as std::strong_ordering
+         */
+        constexpr auto operator ()(const char* A, std::size_t nA, const char* B) const {
+            return operator ()(A, A + nA, B, B + cstr::strlen(B));
+        }
     };
 
     /*!
      * @brief The function object instance of constexpr case-insensitive C-style string comparison.
      *
-     * See ci_strcmp_t::operator() for details.
+     * See ci_strcmp_t::operator() overloads for details.
      */
     inline constexpr ci_strcmp_t ci_strcmp;
 
@@ -252,8 +280,11 @@ namespace utils::cstr {
      * Continuous delimiters are merged as one. Delimiter prefix and suffix are removed.
      * In other words, no empty string will be produces as result.
      *
-     * For each substring [s, s+n) split, the callback func(s, s+n) or func(s, n) will be invoked.
-     * Either of the two methods should be supported by func. If both supported, take the first (s, s+n) one.
+     * For each substring [s, s+n) split, the callback will be invoked.
+     * The compiler will attempt to perform the following invocation in order:
+     *   1. func(s, s+n)
+     *   2. func(s, n)
+     *   3. func(std::string_view{s, s+n})
      *
      * e.g.
      *
@@ -282,6 +313,8 @@ namespace utils::cstr {
                 func(first, next);
             } else if constexpr (requires {func(first, std::size_t{});}) {
                 func(first, static_cast<std::size_t>(next - first));
+            } else if constexpr (requires {func(std::string_view{first, next});}) {
+                func(std::string_view{first, next});
             } else {
                 static_assert(AlwaysFalse<Func>::value,
                               "Either func(const char*, const char*) "

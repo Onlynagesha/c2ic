@@ -84,8 +84,9 @@ inline std::string toString(const SimResult& res) noexcept {
  * @param boostedNodes The list of boosted nodes
  * @return Total gain, positive gain and negative gain in average
  */
-template <rs::range Range> requires(std::convertible_to<rs::range_value_t<Range>, std::size_t>)
-SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&& boostedNodes) {
+template <rs::range Range>
+SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&& boostedNodes)
+requires(std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
     // Initializes all the link states
     IMMLink::refreshAllStates();
     // Initializes all the nodes: state = None, dist = +inf, boosted = false
@@ -167,13 +168,14 @@ SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&&
  * @param nThreads How many threads used for simulation
  * @return Total gain, positive gain and negative gain in average
  */
-template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
+template <rs::range Range>
 SimResultItem simulateBoosted(
-        IMMGraph& graph,
-        const SeedSet& seeds,
-        Range&& boostedNodes,
-        std::size_t simTimes,
-        std::size_t nThreads = 1) {
+        IMMGraph&       graph,
+        const SeedSet&  seeds,
+        Range&&         boostedNodes,
+        std::size_t     simTimes,
+        std::size_t     nThreads = 1)
+        requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
     // simTimesHere = Number of simulation times dispatched for current task worker
     auto func = [&](std::size_t simTimesHere) {
         // Copying the graph is necessary since threads shall not influence each other.
@@ -216,17 +218,62 @@ SimResultItem simulateBoosted(
  * @param nThreads How many threads used for simulation
  * @return Simulation result with boosted nodes, without boosted nodes, and their difference
  */
-template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
+template <rs::range Range>
 SimResult simulate(
-        IMMGraph& graph,
-        const SeedSet& seeds,
-        Range&& boostedNodes,
-        std::size_t simTimes,
-        std::size_t nThreads = 1) {
+        IMMGraph&       graph,
+        const SeedSet&  seeds,
+        Range&&         boostedNodes,
+        std::size_t     simTimes,
+        std::size_t     nThreads = 1)
+        requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
     auto res = SimResult{};
     res.withBoosted = simulateBoosted(graph, seeds, boostedNodes, simTimes, nThreads);
     res.withoutBoosted = simulateBoosted(graph, seeds, vs::empty<std::size_t>, simTimes, nThreads);
     res.diff = res.withBoosted - res.withoutBoosted;
+    return res;
+}
+
+/*!
+ * @brief Simulates message propagation with and without given boosted nodes, with multi-threading support.
+ *
+ * Assumes that the boosted nodes are sorted by descending order of influence,
+ * i.e. the selection result of K = K2 < K1 is simply the prefix of result with K = K1 of length K2.
+ *
+ * A list of boosted node count K's is provided. For each K,
+ * only the first min{K, Total} boosted nodes are used for simulation.
+ *
+ * See simulate(graph, seeds, boostedNodes, simTimes, nThreads) for details.
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param boostedNodes The list of boosted nodes
+ * @param kList The list of K's
+ * @param simTimes T, How many times to simulate
+ * @param nThreads How many threads used for simulation
+ * @return A list of simulation results for each K, with boosted nodes, without boosted nodes, and their difference
+ */
+template <rs::range NodeRange, rs::range KRange>
+std::vector<SimResult> simulate(
+        IMMGraph&       graph,
+        const SeedSet&  seeds,
+        NodeRange&&     boostedNodes,
+        KRange&&        kList,
+        std::size_t     simTimes,
+        std::size_t     nThreads = 1)
+        requires (std::convertible_to<rs::range_value_t<NodeRange>, std::size_t>)
+        && (std::convertible_to<rs::range_value_t<KRange>, std::size_t>) {
+    auto noBoosted = simulateBoosted(graph, seeds, vs::empty<std::size_t>, simTimes, nThreads);
+    auto res = std::vector<SimResult>{};
+
+    for (auto k: kList) {
+        auto withBoosted = simulateBoosted(graph, seeds, boostedNodes | vs::take(k), simTimes, nThreads);
+        res.push_back(SimResult{
+            .withBoosted = withBoosted,
+            .withoutBoosted = noBoosted,
+            .diff = withBoosted - noBoosted
+        });
+    }
+
     return res;
 }
 

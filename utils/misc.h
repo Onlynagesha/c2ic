@@ -37,7 +37,7 @@ namespace utils {
     inline std::size_t totalBytesUsed(const std::vector<T>& vec) {
         // .capacity() is used instead of .size() to calculate actual memory allocated
         auto res = sizeof(vec);
-        if constexpr (std::is_same_v<T, bool>) {
+        if constexpr (std::is_same_v<std::remove_cvref_t<T>, bool>) {
             // For vector<bool>, 1 byte contains 8 elements
             res += vec.capacity() / 8;
         } else {
