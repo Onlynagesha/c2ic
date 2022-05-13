@@ -32,4 +32,11 @@ using fmt::format;
 #error "Either std::format in C++20 or fmt::format in libfmt should be supported!"
 #endif
 
+// For compatibility with old code
+#include "graph/graph.h"
+#include "utils/all.h"
+#include "utils/Timer.h"
+
+using namespace utils;
+
 #endif //DAWNSEEKER_GLOBAL_H

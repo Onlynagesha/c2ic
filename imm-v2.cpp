@@ -8,7 +8,6 @@
 #include "greedyselect.h"
 #include "imm.h"
 #include "simulate.h"
-#include "Timer.h"
 
 struct GenerateSamplesResult {
     PRRGraphCollection  prrCollection;
@@ -384,6 +383,7 @@ IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticAr
 
     auto prrCollection = PRRGraphCollectionSA(graph.nNodes(), args.gainThreshold, seeds);
     auto usesRandomGreedy = args.algo == AlgorithmLabel::SA_RG_IMM;
+    LOG_INFO(format("Use random greedy? : {}", usesRandomGreedy ? "Yes" : "No"));
 
     auto centerCandidates = getCenterList(graph, seeds, args.sampleDistLimit);
     LOG_INFO(format("#Candidates of center node: {} of {} ({:.2f}%)",
