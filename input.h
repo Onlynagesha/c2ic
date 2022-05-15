@@ -7,7 +7,7 @@
 
 #include <fstream>
 #include "args-v2.h"
-#include "immbasic.h"
+#include "graphbasic.h"
 
 /*
 * Reads the graph.
@@ -28,12 +28,13 @@ inline IMMGraph readGraph(std::istream& in) {
     }
 
     std::size_t from, to;
+    std::size_t index = 0;
     double p, pBoost;
     for (; in >> from >> to >> p >> pBoost; ) {
         if (from >= V || to >= V) {
             throw std::out_of_range("invalid node index: from >= V or to >= V");
         }
-        graph.fastAddLink(IMMLink(from, to, p, pBoost));
+        graph.fastAddLink(IMMLink(from, to, index++, p, pBoost));
     }
     return graph;
 }

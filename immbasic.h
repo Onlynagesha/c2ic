@@ -22,7 +22,7 @@ enum class NodeState {
 };
 
 enum class LinkState {
-    NotSampleYet = 0,   // Not sampled initially
+    NotSampledYet = 0,   // Not sampled initially
     Blocked = 1,        // Blocked link: unable to propagate any message
     Active = 2,         // Active link:  message propagates with probability p
     Boosted = 3         // Boosted link: for a boosted link u -> v, 
@@ -56,7 +56,7 @@ constexpr const char* toString(NodeState t) {
 */
 constexpr const char* toString(LinkState t) {
     switch (t) {
-        case LinkState::NotSampleYet:
+        case LinkState::NotSampledYet:
             return "Unsampled";
         case LinkState::Blocked:
             return "Blocked";
@@ -561,132 +561,36 @@ public:
     }
 };
 
-/*
-* p = probability that certain non-boosted positive message, 
-*       or negative message propagates along this link
-* pBoost = probability that boosted positive message propagates along this link
-*       (ensures that pBoost >= p)
-*/
-struct IMMLink: graph::BasicLink<std::size_t> {
-private:
-    // Internal pseudo-random generator
-    // The seed of generator is set related to system clock by default.
-    // If required that the sample sequence is fixed (on debugging for example),
-    //  set the seed via .setSeed()
-    static inline auto gen = createMT19937Generator();
+/*!
+ * @brief Generates a random link state according to probabilities (p, pBoost).
+ *
+ *   - With p probability:              Active
+ *   - With (pBoost - p) probability:   Boosted
+ *   - With (1 - pBoost) probability:   Blocked
+ *
+ * @param p
+ * @param pBoost
+ * @return One of Active, Boosted or Blocked
+ */
+inline LinkState getRandomState(double p, double pBoost) {
+    static auto gen = createMT19937Generator();
+     //A = 2 ^ (-B) where B = number of bits of each generated unsigned integer
+    constexpr static double A = quickPow(0.5, decltype(gen)::word_size);
 
-    // Each random-generated state is assigned a timestamp. 
-    // After refreshing the state of one link, its timestamp is set equal to globalTimeStamp
-    //  which indicates its state is up-to-date.
-    // On .getState() call, first check whether the state is up-to-date.
-    // If not, refresh first and then return.
-    // To refresh states globally for all the links, simply increment globalTimeStamp by 1
-    //  so that O(1) lazy global refreshing is performed. 
-    static inline auto globalTimestamp = unsigned(0);
-
-    // Timestamp of the state
-    unsigned    stateTimestamp; 
-    // State of the link
-    LinkState	state;
-
-public:
-    double		p;
-    double		pBoost; 
-
-    IMMLink() = default;
-
-    IMMLink(std::size_t from, std::size_t to, double p, double pBoost) :BasicLink(from, to),
-        // On construction, sets its timestamp as outdated
-        //  to trigger refreshing on .getState() call.
-        stateTimestamp(globalTimestamp - 1), state(LinkState::NotSampleYet), 
-        p(p), pBoost(pBoost) {}
-
-    /*
-    * Gets the state of the link
-    * If never sampled before, or the sample result is outdated, do sample once; 
-    * otherwise, returns the last sample result
-    */
-    [[nodiscard]] LinkState getState() const {
-        if (stateTimestamp != globalTimestamp) {
-            const_cast<IMMLink*>(this)->refreshState();
-        }
-        return state; 
+    // Fast generation of pseudo-random value in [0, 1)
+    double r = (double)gen() * A;
+    // [0, p): Active
+    if (r < p) {
+        return LinkState::Active;
     }
-
-    /*
-    * Gets the state of the link no matter whether it is NotSampleYet or outdated
-    * This version is recommended when it's ensured the link is sampled up-to-date already
-    */
-    [[nodiscard]] LinkState forceGetState() const {
-        return state; 
+    // [p, pBoost): Boosted
+    else if (r < pBoost) {
+        return LinkState::Boosted;
     }
-
-    /*
-    * Refreshes the state of this link, and sets its timestamp up-to-date.
-    * With p probability:				Active 
-    * With (pBoost - p) probability:	Boosted
-    * With (1 - pBoost) probability:	Blocked
-    */
-    void refreshState() {
-        // A = 2 ^ (-B) where B = number of bits of each generated unsigned integer
-        constexpr int B = (int) decltype(gen)::word_size;
-        constexpr static double A = quickPow(0.5, B);
-        // Fast generation of pseudo-random value in [0, 1)
-        double r = (double)gen() * A;
-        // [0, p): Active
-        if (r < p) {
-            state = LinkState::Active;
-        }
-        // [p, pBoost): Boosted
-        else if (r < pBoost) {
-            state = LinkState::Boosted;
-        }
-        // [pBoost, 1): Blocked
-        else {
-            state = LinkState::Blocked;
-        }
-        // Set the timestamp up-to-date
-        stateTimestamp = globalTimestamp;
+    // [pBoost, 1): Blocked
+    else {
+        return LinkState::Blocked;
     }
-
-    /*
-    * Sets the seed of the internal pseudo-random generator
-    * On testing scenario, it ensures the same generation results with the same seed
-    * (The default seed is something related to system clock)
-    */
-    static void setSeed(unsigned seed) {
-        gen.seed(seed);
-    }
-
-    /*
-    * Refreshes all the link states in lazy method.
-    * All the link states get outdated and need re-sampling on next .getState() call.
-    */
-    static void refreshAllStates(unsigned seed = 0) {
-        if (seed != 0) {
-            setSeed(seed);
-        }
-        globalTimestamp += 1;
-    }
-};
-
-// Node type of the whole graph for IMM algorithms
-struct IMMNode: graph::BasicNode<std::size_t> {
-    NodeState   state;
-    int         dist;
-    bool        boosted;
-
-    IMMNode() = default;
-    explicit IMMNode(std::size_t idx): // NOLINT(cppcoreguidelines-pro-type-member-init)
-    graph::BasicNode<std::size_t>(idx) {}
-};
-
-// Graph type for IMM algorithms
-using IMMGraph = graph::Graph<
-        IMMNode,
-        IMMLink,
-        graph::IdentityIndexMap,
-        graph::tags::EnablesFastAccess::Yes
-        >;
+}
 
 #endif //DAWNSEEKER_IMMBASIC_H

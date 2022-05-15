@@ -6,7 +6,9 @@
 #define DAWNSEEKER_SIMULATE_H
 
 #include "immbasic.h"
+#include "thread.h"
 #include <future>
+#include <numeric>
 #include <queue>
 
 struct SimResultItem {
@@ -14,42 +16,109 @@ struct SimResultItem {
     double negativeGain;    // negative = sum of all the gain(v) < 0
     double totalGain;       // total = positive + negative
 
-    void add(double value) {
+    // Count of nodes of each state
+    double noneCount;
+    double caPlusCount;
+    double caCount;
+    double crCount;
+    double crMinusCount;
+
+    static const auto& members() {
+        static auto mps = std::initializer_list<std::tuple<double SimResultItem::*, const char*>>{
+                {&SimResultItem::positiveGain, "positiveGain"},
+                {&SimResultItem::negativeGain, "negativeGain"},
+                {&SimResultItem::totalGain, "totalGain"},
+
+                {&SimResultItem::noneCount, "count of None"},
+                {&SimResultItem::caPlusCount, "count of Ca+"},
+                {&SimResultItem::caCount, "count of Ca"},
+                {&SimResultItem::crCount, "count of Cr"},
+                {&SimResultItem::crMinusCount, "count of Cr-"}
+        };
+        return mps;
+    }
+
+    void add(double value, NodeState state) {
         totalGain += value;
         if (value > 0.0) {
             positiveGain += value;
         } else {
             negativeGain += value;
         }
+
+        switch (state) {
+        case NodeState::CaPlus:
+            caPlusCount += 1;
+            break;
+        case NodeState::Ca:
+            caCount += 1;
+            break;
+        case NodeState::Cr:
+            crCount += 1;
+            break;
+        case NodeState::CrMinus:
+            crMinusCount += 1;
+            break;
+        default:
+            noneCount += 1;
+            break;
+        }
+    }
+
+    void add(NodeState state) {
+        add(gain(state), state);
     }
 
     SimResultItem& operator += (const SimResultItem& rhs) {
-        positiveGain += rhs.positiveGain;
-        negativeGain += rhs.negativeGain;
-        totalGain += rhs.totalGain;
+        for (auto mp: members() | vs::keys) {
+            this->*mp += rhs.*mp;
+        }
         return *this;
     }
 
+    SimResultItem operator + (const SimResultItem& rhs) const {
+        auto res = *this;
+        res += rhs;
+        return res;
+    }
+
     SimResultItem& operator /= (std::size_t n) {
-        positiveGain /= (double) n;
-        negativeGain /= (double) n;
-        totalGain /= (double) n;
+        for (auto mp: members() | vs::keys) {
+            this->*mp /= (double)n;
+        }
+        return *this;
+    }
+
+    SimResultItem operator / (std::size_t n) const {
+        auto res = *this;
+        res /= n;
+        return res;
+    }
+
+    SimResultItem& operator -= (const SimResultItem& rhs) {
+        for (auto mp: members() | vs::keys) {
+            this->*mp -= rhs.*mp;
+        }
         return *this;
     }
 
     SimResultItem operator - (const SimResultItem& rhs) const {
-        return SimResultItem{
-                .positiveGain = this->positiveGain - rhs.positiveGain,
-                .negativeGain = this->negativeGain - rhs.negativeGain,
-                .totalGain = this->totalGain - rhs.totalGain
-        };
+        auto res = *this;
+        res -= rhs;
+        return res;
     }
 };
 
-inline std::string toString(const SimResultItem& item) noexcept {
-    return format(
-            "{{.totalGain = {:.2f}, .positiveGain = {:.2f}, .negativeGain = {:.2f}}}",
-            item.totalGain, item.positiveGain, item.negativeGain);
+inline std::string toString(const SimResultItem& item, int indent = 4) {
+    indent = std::max(indent, 0);
+    auto indentStr = std::string(indent, ' ');
+
+    auto res = std::string("{\n");
+    for (auto [mp, name]: SimResultItem::members()) {
+        res += format("{}{}: {:.3f}\n", indentStr, name, item.*mp);
+    }
+    res += "}";
+    return res;
 }
 
 struct SimResult {
@@ -58,15 +127,24 @@ struct SimResult {
     SimResultItem diff;     // diff = without boosted - without boosted
 };
 
-// Converts to a multi-line string
-inline std::string toString(const SimResult& res) noexcept {
-    return format(
-            "{{\n"
-            "       .withBoosted = {0}\n"
-            "    .withoutBoosted = {1}\n"
-            "              .diff = {2}\n}}",
-            res.withBoosted, res.withoutBoosted, res.diff);
+inline std::string toString(const SimResult& res) {
+    return format("with boosted: {},\nwithout boosted: {},\ndiff: {}",
+                  res.withBoosted, res.withoutBoosted, res.diff);
 }
+
+/*!
+ * @brief Properties of a node during simulation
+ */
+struct NodeSimProperties {
+    static constexpr auto infDist = utils::halfMax<std::size_t>;
+
+    // State of current node (None by default)
+    NodeState   state   = NodeState::None;
+    // Distance from seed nodes (+inf by default)
+    std::size_t dist    = infDist;
+    // Whether the node is boosted (false by default)
+    bool        boosted = false;
+};
 
 /*
  * Simulates message propagation with given boosted nodes
@@ -79,80 +157,113 @@ inline std::string toString(const SimResult& res) noexcept {
  * Each simulation sums up the gain of all the nodes,
  * Ca and Ca+ counted as lambda, Cr as lambda - 1, Cr- and None as 0.
  *
+ * The link states object (which must be initialized with graph size |E|) is provided for reusing.
+ * Refreshing is done once during this procedure.
+ *
+ * The node states list is provided for reusing.
+ *
  * @param graph The whole graph
+ * @param linkStates The already initialized link states object
+ * @param node The list of node property collection for each node
  * @param seeds The seed set
  * @param boostedNodes The list of boosted nodes
- * @return Total gain, positive gain and negative gain in average
+ * @return A SimResultItem object with the result of this simulation.
  */
 template <rs::range Range>
-SimResultItem simulateBoostedOnce(IMMGraph& graph, const SeedSet& seeds, Range&& boostedNodes)
+inline SimResultItem simulateBoostedOnce(
+        const IMMGraph&                 graph,
+        IMMLinkStateSamples&            linkStates,
+        std::vector<NodeSimProperties>& nodes,
+        const SeedSet&                  seeds,
+        Range&&                         boostedNodes)
 requires(std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
-    // Initializes all the link states
-    IMMLink::refreshAllStates();
-    // Initializes all the nodes: state = None, dist = +inf, boosted = false
-    for (auto& node: graph.nodes()) {
-        node.state = NodeState::None;
-        node.dist = halfMax<int>;
-        node.boosted = false;
-    }
+    // First refreshes all the link states
+    linkStates.initOrRefresh(graph.nLinks());
+    // Initializes all the node properties with default values
+    nodes.assign(graph.nNodes(), NodeSimProperties{});
+
     // Marks all the boosted nodes
     for (auto s: boostedNodes) {
-        graph[s].boosted = true;
+        nodes[s].boosted = true;
     }
 
-    auto Q = std::queue<IMMNode*>();
+    auto Q = std::queue<std::size_t>();
     // Adds all the seeds to queue first
     for (auto a: seeds.Sa()) {
-        graph[a].state = NodeState::Ca;
-        graph[a].dist = 0;
-        Q.emplace(graph.fastNode(a));
+        nodes[a].state = NodeState::Ca;
+        nodes[a].dist = 0;
+        Q.emplace(a);
     }
     for (auto r: seeds.Sr()) {
-        graph[r].state = NodeState::Cr;
-        graph[r].dist = 0;
-        Q.emplace(graph.fastNode(r));
+        nodes[r].state = NodeState::Cr;
+        nodes[r].dist = 0;
+        Q.emplace(r);
     }
 
     for (; !Q.empty(); Q.pop()) {
-        auto& cur = *Q.front();
+        auto cur = Q.front();
         // Boosted nodes may change its state,
         //  making positive message boosted and negative message neutralized
-        if (cur.boosted) {
-            if (cur.state == NodeState::Ca) {
-                cur.state = NodeState::CaPlus;
-            } else if (cur.state == NodeState::Cr) {
-                cur.state = NodeState::CrMinus;
+        if (nodes[cur].boosted) {
+            if (nodes[cur].state == NodeState::Ca) {
+                nodes[cur].state = NodeState::CaPlus;
+            } else if (nodes[cur].state == NodeState::Cr) {
+                nodes[cur].state = NodeState::CrMinus;
             }
         }
-        for (const auto& [to, link]: graph.fastLinksFrom(cur)) {
+        for (const auto& [to_, link]: graph.fastLinksFrom(cur)) {
+            auto to = index(to_);
             // Checks the link state
             // For Ca+ message, either boosted or active is OK.
-            // For others, only active.
-            if (link.getState() == LinkState::Blocked ||
-                link.forceGetState() == LinkState::Boosted && cur.state != NodeState::CaPlus) {
+            if (nodes[cur].state == NodeState::CaPlus && linkStates.get(link) == LinkState::Blocked) {
                 continue;
             }
-            if (cur.dist + 1 < to.dist) {
+            // For others, only active.
+            if (nodes[cur].state != NodeState::CaPlus && linkStates.get(link) != LinkState::Active) {
+                continue;
+            }
+
+            if (nodes[cur].dist + 1 < nodes[to].dist) {
                 // If to is never visited before, adds it to queue
-                if (to.dist == halfMax<int>) {
-                    Q.emplace(&to);
+                if (nodes[to].dist == NodeSimProperties::infDist) {
+                    Q.emplace(to);
                 }
                 // Updates dist and state, message propagates along cur -> to
-                to.state = cur.state;
-                to.dist = cur.dist + 1;
+                nodes[to].state = nodes[cur].state;
+                nodes[to].dist = nodes[cur].dist + 1;
             }
                 // Some other message has arrived in the same round, but current one has higher priority
-            else if (cur.dist + 1 == to.dist && compare(cur.state, to.state) > 0) {
-                to.state = cur.state;
+            else if (nodes[cur].dist + 1 == nodes[to].dist && compare(nodes[cur].state, nodes[to].state) > 0) {
+                nodes[to].state = nodes[cur].state;
             }
         }
     }
 
     auto res = SimResultItem{};
     for (const auto& node: graph.nodes()) {
-        res.add(gain(node.state));
+        res.add(nodes[index(node)].state);
     }
     return res;
+}
+
+/*!
+ * @brief Simulates message propagation with given boosted nodes.
+ *
+ * See simulateBoostedOnce(graph, linkStates, nodes, seeds, boostedNodes) for details.
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param boostedNodes The list of boosted nodes
+ * @return A SimResultItem object with the result of this simulation.
+ */
+template <rs::range Range>
+inline SimResultItem simulateBoostedOnce(
+        const IMMGraph&                 graph,
+        const SeedSet&                  seeds,
+        Range&&                         boostedNodes) {
+    auto linkStates = IMMLinkStateSamples(graph.nLinks());
+    auto nodes = std::vector<NodeSimProperties>(graph.nNodes());
+    simulateBoostedOnce(graph, linkStates, nodes, seeds, std::forward<Range>(boostedNodes));
 }
 
 /*!
@@ -168,41 +279,33 @@ requires(std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
  * @param nThreads How many threads used for simulation
  * @return Total gain, positive gain and negative gain in average
  */
-template <rs::range Range>
+template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
 SimResultItem simulateBoosted(
         IMMGraph&       graph,
         const SeedSet&  seeds,
         Range&&         boostedNodes,
         std::size_t     simTimes,
-        std::size_t     nThreads = 1)
-        requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
-    // simTimesHere = Number of simulation times dispatched for current task worker
-    auto func = [&](std::size_t simTimesHere) {
-        // Copying the graph is necessary since threads shall not influence each other.
-        auto graphCopy = graph;
-        auto res = SimResultItem{};
-        for (std::size_t i = 0; i != simTimesHere; i++) {
-            res += simulateBoostedOnce(graphCopy, seeds, boostedNodes);
-        }
-        return res;
-    };
-
-    auto tasks = std::vector<std::future<SimResultItem>>{};
+        std::size_t     nThreads = 1) {
+    // Reuses link state objects for each thread
+    auto linkStatesPool = std::vector<IMMLinkStateSamples>{nThreads};
     for (std::size_t i = 0; i < nThreads; i++) {
-        // Current task worker performs simulations with index in [first, last)
-        auto first = simTimes * i / nThreads;
-        auto last = simTimes * (i + 1) / nThreads;
-        tasks.emplace_back(std::async(std::launch::async, func, last - first));
+        linkStatesPool[i].init(graph.nLinks());
     }
+    // Reuses node state lists for each thread
+    auto nodesPool = std::vector<std::vector<NodeSimProperties>>{nThreads};
+    // Results of each thread
+    auto subResults = std::vector<SimResultItem>{nThreads};
 
-    auto res = SimResultItem{};
-    // Sums up
-    for (std::size_t i = 0; i < nThreads; i++) {
-        res += tasks[i].get();
-    }
-    // ... and then takes the average
-    res /= simTimes;
-    return res;
+    runTaskGroup(vs::iota(std::size_t{0}, nThreads) | vs::transform([&](std::size_t tid) {
+        return [&, tid](std::size_t) {
+            auto& linkStates    = linkStatesPool[tid];
+            auto& nodes         = nodesPool[tid];
+            auto& subRes        = subResults[tid];
+            subRes += simulateBoostedOnce(graph, linkStates, nodes, seeds, boostedNodes);
+        };
+    }), vs::iota(std::size_t{0}, simTimes));
+
+    return std::accumulate(subResults.begin(), subResults.end(), SimResultItem{}) / simTimes;
 }
 
 /*!

@@ -10,7 +10,12 @@
 * prrGraph is an empty graph initially.
 * prrGraph should be preserved before this call
 */
-int getLimitDist(PRRGraph& prrGraph, const IMMGraph& graph, const SeedSet& seeds, std::size_t center)
+int getLimitDist(
+        const IMMGraph&         graph,
+        IMMLinkStateSamples&    linkStates,
+        PRRGraph&               prrGraph,
+        const SeedSet&          seeds,
+        std::size_t             center)
 {
     auto Q = std::queue<std::size_t>({ center });
     // Add initial node
@@ -23,9 +28,9 @@ int getLimitDist(PRRGraph& prrGraph, const IMMGraph& graph, const SeedSet& seeds
         for (auto [from, e] : graph.fastLinksTo(cur)) {
             auto next = index(from);
             // Consider only Active links
-            // Here we consider the case WITH no boosted nodes,
+            // Here we consider the case with no boosted nodes,
             //  thus boosted links are regarded as blocked as well
-            if (e.getState() != LinkState::Active || prrGraph.hasNode(next)) {
+            if (linkStates.get(e) != LinkState::Active || prrGraph.hasNode(next)) {
                 continue;
             }
             int nextDist = prrGraph[cur].dist + 1;
@@ -47,7 +52,7 @@ int getLimitDist(PRRGraph& prrGraph, const IMMGraph& graph, const SeedSet& seeds
 *   Sets the state of all the visited nodes to either Ca or Cr
 *   Note that some nodes may not be visited, whose states are left as None
 */
-void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
+void simulateNoBoost(PRRGraph& prrGraph, IMMLinkStateSamples& linkStates, const SeedSet& seeds)
 {
     // Initialize distance to infinity, and state to None
     for (auto& node : prrGraph.nodes()) {
@@ -66,7 +71,7 @@ void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
             }
         }
     };
-    // Initializes the queue WITH higher priority seeds first,
+    // Initializes the queue with higher priority seeds first,
     //  lower priority seeds then.
     if ((NodeState::Ca <=> NodeState::Cr) == std::strong_ordering::greater) {
         initSeeds(seeds.Sa(), NodeState::Ca);
@@ -86,7 +91,7 @@ void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
         auto& cur = *Q.front();
         for (auto [to, e] : prrGraph.fastLinksFrom(cur)) {
             // Consider Active links only
-            if (e.forceGetState() != LinkState::Active) {
+            if (e.state != LinkState::Active) {
                 continue;
             }
             // If never visited before
@@ -104,14 +109,19 @@ void simulateNoBoost(PRRGraph& prrGraph, const SeedSet& seeds)
 /*
 * Step 2: get the PRR-sketch sub-graph, all the nodes within limitDist
 */
-void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center)
+void samplePRRSketch(
+        const IMMGraph&         graph,
+        IMMLinkStateSamples&    linkStates,
+        PRRGraph&               prrGraph,
+        const SeedSet&          seeds,
+        std::size_t             center)
 {
     // First resets all the link states
-    IMMLink::refreshAllStates();
+    linkStates.initOrRefresh(graph.nLinks());
     // Clears the old graph
     prrGraph.reserveClear();
     prrGraph.center = center;
-    auto limitDist = getLimitDist(prrGraph, graph, seeds, center);
+    auto limitDist = getLimitDist(graph, linkStates, prrGraph, seeds, center);
 
     // Step 2: Do PRR-sketch, with boosted links into consideration
     // Do BFS for limitDist steps
@@ -125,7 +135,7 @@ void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& s
         // Traverse in the transposed graph
         for (auto [from, e] : graph.fastLinksTo(cur)) {
             auto next = index(from);
-            if (e.getState() == LinkState::Blocked) {
+            if (linkStates.get(e) == LinkState::Blocked) {
                 continue;
             }
             // Add nodes to the sketched PRR-subgraph
@@ -138,11 +148,21 @@ void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& s
             }
             // Add the link next -> cur
             // The link is either Active or Boosted
-            prrGraph.fastAddLink(e);
+            prrGraph.fastAddLink(PRRLink(e.from(), e.to(), linkStates.fastGet(e)));
         }
     }
     // Step 3: forward simulation
-    simulateNoBoost(prrGraph, seeds);
+    simulateNoBoost(prrGraph, linkStates, seeds);
+}
+
+void samplePRRSketch(
+        const IMMGraph&         graph,
+        PRRGraph&               prrGraph,
+        const SeedSet&          seeds,
+        std::size_t             center)
+{
+    auto linkStates = IMMLinkStateSamples(graph.nLinks());
+    samplePRRSketch(graph, linkStates, prrGraph, seeds, center);
 }
 
 PRRGraph samplePRRSketch(const IMMGraph& graph, const SeedSet& seeds, std::size_t center)
@@ -180,7 +200,7 @@ void calculateCenterStateToFastR(PRRGraph& prrGraph)
         // Traverse the transposed graph
         for (auto [from, e] : prrGraph.fastLinksTo(cur)) {
             // For negative messages, only the active (but not boosted) are considered
-            if (e.forceGetState() == LinkState::Active && from.distR == halfMax<int>) {
+            if (e.state == LinkState::Active && from.distR == halfMax<int>) {
                 from.distR = cur.distR + 1;
                 Q.push(&from);
             }
@@ -274,8 +294,8 @@ void calculateCenterStateToFast(PRRGraph& prrGraph)
 }
 
 NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, std::size_t v) {
-    graph::NodeOrIndex auto& vNode = prrGraph[v];
-    graph::NodeOrIndex auto& centerNode = prrGraph.centerNode();
+    auto& vNode = prrGraph[v];
+    auto& centerNode = prrGraph.centerNode();
 
     // Boost the node v, Ca -> Ca+, or Cr -> Cr-
     if (vNode.state == NodeState::Ca) {
@@ -293,14 +313,14 @@ NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, s
     vis[v] = true;
 
     for (; !Q.empty(); Q.pop()) {
-        auto& cur = *Q.front(); 
+        auto& cur = *Q.front();
         auto nextDist = cur.dist + 1;
 
         for (auto [to, e] : prrGraph.fastLinksFrom(cur)) {
             // The link cur -> e.to is reachable if:
             //  (1) cur is in Ca+ state, thus both Active and Boosted links are accepted
             //  (2) The link is in Active state
-            if (cur.state != NodeState::CaPlus && e.forceGetState() != LinkState::Active) {
+            if (cur.state != NodeState::CaPlus && e.state != LinkState::Active) {
                 continue; 
             }
             // State of the target node may change if:

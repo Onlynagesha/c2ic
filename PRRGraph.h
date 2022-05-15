@@ -1,102 +1,113 @@
 #ifndef DAWNSEEKER_PRRGRAPH_H
 #define DAWNSEEKER_PRRGRAPH_H
 
+#include "graphbasic.h"
 #include "immbasic.h"
 
-// Node type in the PRR-sketch
-struct PRRNode : graph::BasicNode<std::size_t> { // NOLINT(cppcoreguidelines-pro-type-member-init)
-    // Which state this node will become if no boosted node exists
-    // Ca, Cr, or None, according to which kind of message comes first
-    NodeState   state = NodeState{};
-    // Which state this node will change the center node of its PRR-sketch to
-    //  if this node is set as a boosted node
-    NodeState   centerStateTo = NodeState{};
-    // Minimum distance from any seed node
-    int	        dist = 0;
-    // Reversed minimum distance from the center node
-    int         distR = 0;
-    // For all Ca nodes, maxDistP = maximal accepted distance from the nearest seed node
-    //  with which this node changes the center node to Ca+ after being boosted.
-    int         maxDistP = 0;
-
-    PRRNode() = default;
-
-    explicit PRRNode(std::size_t index, int dist = 0) :
-        BasicNode(index), dist(dist) {}
-};
-
-using PRRGraphBase = graph::Graph<
-        PRRNode, IMMLink,
-        graph::LinearIndexMap,
-        graph::tags::EnablesFastAccess::Yes
->;
-
-// Graph type of the PRR-sketch
-struct PRRGraph: PRRGraphBase {
-    // Index of the center node
-    std::size_t center{};
-    // State of the center node, equivalent to .centerNode().state
-    NodeState   centerState{};
-
-    // Delayed reservation
-    explicit PRRGraph(graph::tags::ReservesLater later): PRRGraphBase(later) {}
-    // Reserves WITH the arguments
-    explicit PRRGraph(const std::map<std::string, std::size_t>& reserveArgs): PRRGraphBase(reserveArgs) {}
-
-    PRRNode& centerNode() {
-        return operator[](center);
-    }
-
-    [[nodiscard]] const PRRNode& centerNode() const {
-        return operator[](center);
-    }
-};
-
-/*
-* Creates a sample of PRR-sketch, with given seed set and center as initial node
-* All the links in the resulting PRR-sketch are either Active or Boosted
-*   (i.e. Blocked links are filtered out)
-* This procedure will set:
-*   v.dist:  the minimum distance from any seed node to v;
-*   v.state: the state of v without any boosted node (as one of Ca, Cr or None)
-*/
+/*!
+ * @brief Creates a sample of PRR-sketch, with given seed set and center as initial node.
+ *
+ * For each node v in the PRR-sketch, the following properties will be set:
+ *   - v.dist:  the minimum distance from any seed node to v;
+ *   - v.state: the state of v without any boosted node (as one of Ca, Cr or None)
+ *
+ * For each link e =  u -> v in the PRR-sketch, the following properties will be set:
+ *   - e.state: the link state (Active or Boosted)
+ *
+ * @param graph The whole graph
+ * @param seeds The seed set
+ * @param center The center node of current PRR-sketch
+ * @return The PRR-sketch object.
+ */
 PRRGraph samplePRRSketch(const IMMGraph& graph, const SeedSet& seeds, std::size_t center);
 
-/*
- * Creates a sample of PRR-sketch and writes the result to prrGraph
- * The PRRGraph object must have been reserved well.
- * Reserve arguments should contain: {
- *   { "nodes", |V| },
- *   { "links", |E| },
- *   { "maxIndex", |V| }
- * } where |V| and |E| are the number of nodes and indices of the whole graph respectively
+/*!
+ * @brief Creates a sample of PRR-sketch on the given object, with given seed set and center as initial node.
+ *
+ * The result will be written to prrGraph object, with old contents cleared.
+ * The destination prrGraph object must be preserved before calling, with the following arguments:
+ *   - "nodes" = |V|
+ *   - "links" = |E|
+ *   - "maxIndex" = |V|
+ *
+ * WARNING on multithreading cases: different prrGraph objects for different threads.
+ * The result will be incorrect or the program may crash
+ * if multiple threads attempt to write to the same PRR-sketch object.
+ *
+ * See samplePRRSketch(graph, seeds, center) for details.
+ *
+ * @param graph The whole graph
+ * @param prrGraph The destination PRR-sketch object
+ * @param seeds The seed set
+ * @param center The center node of current PRR-sketch
  */
 void samplePRRSketch(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center);
 
-/*
-* Calculates gain(v; prrGraph, center) for each v in prrGraph
-* gain(v; prrGraph, center) = difference of state of the center node
-*   between setting S = {v} as the boost node set and S = {}
-* Sets v.centerStateTo and gain of v is implies as gain(v.centerStateTo) - gain(G.centerState)
-* If gain(v; prrGraph, center) > 0, it indicates that setting v as a boosted node
-*   may improve the result.
-*
-* ** FOR MONOTONE & SUB-MODULAR CASES ONLY **
-* Time complexity: O(E_r log V_r) where V_r, E_r = number of nodes and links in the PRR-sketch
-*/
+/*!
+ * @brief Creates a sample of PRR-sketch on the given object, with given seed set, center and link state object.
+ *
+ * The link state object must be initialized before calling, with n = the graph size |V|.
+ * Its contents will be refreshed and updated.
+ *
+ * WARNING on multithreading cases: different linkStates objects for different threads.
+ * The result will be incorrect or the program may crash
+ * if multiple threads attempt to write to the same linkStates object.
+ *
+ * See samplePRRSketch(graph, prrGraph, seeds, center) for details.
+ *
+ * @param graph The whole graph
+ * @param prrGraph The destination PRR-sketch object
+ * @param linkStates The already-initialized link states object
+ * @param seeds The seed set
+ * @param center The center node of current PRR-sketch
+ */
+void samplePRRSketch(const IMMGraph&        graph,
+                     IMMLinkStateSamples&   linkStates,
+                     PRRGraph&              prrGraph,
+                     const SeedSet&         seeds,
+                     std::size_t            center);
+
+/*!
+ * @brief Calculates gain(v; prrGraph) for each v in prrGraph. FOR MONOTONE & SUB-MODULAR CASES ONLY.
+ *
+ * gain(v; prrGraph) = difference of state of the center node
+ *   between setting S = {v} as the boost node set and S = {}.
+ * If gain(v; prrGraph, center) > 0, it indicates that setting v as a boosted node
+ *   may improve the result.
+ *
+ * For each node v, the following properties of v is set:
+ *   - v.centerStateTo: Which states the center node will become if v is set as boosted.
+ *   - v.distR
+ *   - v.maxDistP
+ *
+ * gain(v; G) is implied as gain(v.centerStateTo) - gain(G.centerState).
+ *
+ * Time complexity: O(E_r log V_r) where V_r, E_r = number of nodes and links in the PRR-sketch
+ *
+ * WARNING on multithreading cases: different prrGraph objects for different threads.
+ * The result will be incorrect or the program may crash
+ * if multiple threads attempt to write to the same PRR-sketch object.
+ *
+ * @param prrGraph The PRR-sketch object.
+ */
 void calculateCenterStateToFast(PRRGraph& prrGraph);
 
-/*
-* Calculates gain(v; prrGraph, center) for each v in prrGraph
-* gain(v; prrGraph, center) = difference of state of the center node
-*   between setting S = {v} as the boost node set and S = {}
-* Sets v.centerStateTo and gain of v is implies as gain(v.centerStateTo) - gain(G.centerState)
-*
-* This version has no constraints on monotonicity or sub-modularity
-*   but is much slower than the calculateCenterStateToFast version
-* Time complexity: O(V_r * E_r) 
-*   where V_r (E_r) = number of nodes (links) in the PRR-sketch
-*/
+/*!
+ * @brief Calculates gain(v; prrGraph) for each v in prrGraph.
+ *
+ * For each node v, the following properties of v is set:
+ *   - v.centerStateTo: Which states the center node will become if v is set as boosted.
+ *     (see calculateCenterStateToFast for details)
+ *
+ * Time complexity: O(V_r * E_r) where V_r (E_r) = number of nodes (links) in the PRR-sketch.
+ * This version has no constraints on monotonicity or sub-modularity but is much slower.
+ *
+ * WARNING on multithreading cases: different prrGraph objects for different threads.
+ * The result will be incorrect or the program may crash
+ * if multiple threads attempt to write to the same PRR-sketch object.
+ *
+ * @param prrGraph The PRR-sketch object
+ */
 void calculateCenterStateToSlow(PRRGraph& prrGraph);
 
 #endif 

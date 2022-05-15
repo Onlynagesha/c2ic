@@ -10,4 +10,5 @@ endif()
 
 include_directories(.)
 
-add_executable(Graph main-v2.cpp imm-v2.cpp PRRGraph.cpp args-v2.cpp)
+add_executable(Graph main-v2.cpp imm-v2.cpp PRRGraph.h PRRGraph.cpp args-v2.cpp ProgressCounter.h thread.h graphbasic.h)
+#add_executable(Graph playground.cpp)

@@ -7,7 +7,9 @@
 #include "graph/pagerank.h"
 #include "greedyselect.h"
 #include "imm.h"
+#include "ProgressCounter.h"
 #include "simulate.h"
+#include "thread.h"
 
 struct GenerateSamplesResult {
     PRRGraphCollection  prrCollection;
@@ -21,17 +23,19 @@ struct GenerateSamplesResult {
  *
  * @param prrCollection The PRR-sketch collection object where the result is added
  * @param graph The whole graph
+ * @param linkStates The link states object
  * @param prrGraph The PRR-sketch object where the result is written
  * @param seeds The seed set
  * @param center The center node selected
  */
-void makeSketchFast(PRRGraphCollection& prrCollection,
-                    IMMGraph&           graph,
-                    PRRGraph&           prrGraph,
-                    const SeedSet&      seeds,
-                    std::size_t         center) {
+void makeSketchFast(PRRGraphCollection&     prrCollection,
+                    const IMMGraph&         graph,
+                    IMMLinkStateSamples&    linkStates,
+                    PRRGraph&               prrGraph,
+                    const SeedSet&          seeds,
+                    std::size_t             center) {
     // Gets a PRR-sketch with the specified center
-    samplePRRSketch(graph, prrGraph, seeds, center);
+    samplePRRSketch(graph, linkStates, prrGraph, seeds, center);
     // For monotonic cases, boosting never improves the gain of center node
     //  if center is in Ca state (Ca has the highest gain already)
     if (prrGraph[center].state == NodeState::Ca) {
@@ -56,42 +60,46 @@ void makeSketchFast(PRRGraphCollection& prrCollection,
  * @param nThreads Number of threads to use
  */
 void makeSketchesFast(PRRGraphCollection&   prrCollection,
-                      IMMGraph&             graph,
+                      const IMMGraph&       graph,
                       const SeedSet&        seeds,
                       std::uint64_t         nSamples,
                       std::size_t           nThreads) {
-    // nSamplesHere = Number of samples dispatched for this thread
-    auto func = [](IMMGraph& graph, const SeedSet& seeds, std::uint64_t nSamplesHere) {
-        auto collection = PRRGraphCollection(graph.nNodes(), seeds);
-        auto prrGraph = PRRGraph{{
+    // PRR-sketch objects for reusing in each thread
+    auto prrGraphPool = std::vector<PRRGraph>{};
+    // Link state objects for reusing in each thread
+    auto linkStatesPool = std::vector<IMMLinkStateSamples>{};
+    // PRR-sketch collection objects for each thread
+    auto prrCollectionPool = std::vector<PRRGraphCollection>{};
+
+    for (std::size_t i = 0; i < nThreads; i++) {
+        // Reserves before calling
+        prrGraphPool.push_back(PRRGraph{{
             {"nodes", graph.nNodes()},
             {"links", graph.nLinks()},
             {"maxIndex", graph.nNodes()}
-        }};
-
-        // Uniformly generates a center node in [0, n) each time
-        static auto gen = createMT19937Generator();
-        auto distCenter = std::uniform_int_distribution<std::size_t>(0, graph.nNodes() - 1);
-
-        for (std::uint64_t i = 0; i < nSamplesHere; i++) {
-            makeSketchFast(collection, graph, prrGraph, seeds, distCenter(gen));
-        }
-        return collection;
-    };
-
-    auto tasks = std::vector<std::future<PRRGraphCollection>>();
-    for (std::size_t i = 0; i < nThreads; i++) {
-        // Expected PRR-sketch index range = [first, last)
-        auto first = nSamples * i       / nThreads;
-        auto last  = nSamples * (i + 1) / nThreads;
-        // Dispatches the task to generate (last - first) samples
-        tasks.emplace_back(std::async(std::launch::async, func,
-                                      std::ref(graph), std::cref(seeds), last - first));
+        }});
+        // Reserves before calling
+        linkStatesPool.emplace_back(graph.nLinks());
+        // Initializes before calling
+        prrCollectionPool.emplace_back(graph.nNodes(), seeds);
     }
 
-    // Merges all the results
+    // Uniformly generates a center node in [0, n) each time
+    static auto gen = createMT19937Generator();
+    auto distCenter = std::uniform_int_distribution<std::size_t>(0, graph.nNodes() - 1);
+
+    runTaskGroup(vs::iota(std::size_t{0}, nThreads) | vs::transform([&](std::size_t tid) {
+        return [&, tid](std::size_t v) {
+            auto& linkState     = linkStatesPool[tid];
+            auto& prrGraph      = prrGraphPool[tid];
+            auto& collection    = prrCollectionPool[tid];
+            makeSketchFast(collection, graph, linkState, prrGraph, seeds, v);
+        };
+    }), vs::iota(std::uint64_t{0}, nSamples) | vs::transform([&](auto){return distCenter(gen);}));
+
+    // Merges all the result fragments
     for (std::size_t i = 0; i < nThreads; i++) {
-        prrCollection.merge(tasks[i].get());
+        prrCollection.merge(prrCollectionPool[i]);
     }
 }
 
@@ -100,16 +108,23 @@ void makeSketchesFast(PRRGraphCollection&   prrCollection,
  *
  * This version has no constraints on monotonicity and submodularity, yet much slower.
  *
- * The result will be written to the prrGraph object.
+ * The result will be written to the prrGraph object, with the old contents replaced.
+ * The link state object is provided for reusing.
  *
  * @param graph The whole graph
+ * @param linkStates The link states object
  * @param prrGraph The PRR-sketch object where the result is written
  * @param seeds The seed set
  * @param center The center node selected
  */
-void makeSketchSlow(const IMMGraph& graph, PRRGraph& prrGraph, const SeedSet& seeds, std::size_t center) {
+void makeSketchSlow(
+        const IMMGraph&         graph,
+        IMMLinkStateSamples&    linkStates,
+        PRRGraph&               prrGraph,
+        const SeedSet&          seeds,
+        std::size_t             center) {
     // Gets a PRR-sketch with the specified center
-    samplePRRSketch(graph, prrGraph, seeds, center);
+    samplePRRSketch(graph, linkStates, prrGraph, seeds, center);
     // Calculates each gain(v; prrGraph, center) for v in prrGraph
     // gain is implied as gain(v.centerStateTo) - gain(center.state)
     calculateCenterStateToSlow(prrGraph);
@@ -126,12 +141,6 @@ auto generateSamplesDynamic(IMMGraph& graph, const SeedSet& seeds, const Dynamic
 
     double theta = args.theta0;
     double minS = (1 + ns::sqrt2 * args.epsilon);
-
-    auto prrGraph = PRRGraph({
-        {"nodes", graph.nNodes()},
-        {"links", graph.nLinks()},
-        {"maxIndex", graph.nNodes()}
-    });
 
     for (int i = 1; i < (int)args.log2N; i++) {
         // theta(i) = 2^i * theta(0)
@@ -206,12 +215,6 @@ IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_
     auto prrCollection = PRRGraphCollection(graph.nNodes(), seeds);
     auto res = IMMResult{};
 
-    auto prrGraph = PRRGraph({
-        {"nodes", graph.nNodes()},
-        {"links", graph.nLinks()},
-        {"maxIndex", graph.nNodes()}
-    });
-
     auto timer = Timer{};
     for (std::uint64_t lastPrrCount = 0; std::uint64_t prrCount: args.nSamplesList) {
         // Appends until prrCount PRR-sketches
@@ -272,24 +275,23 @@ auto getCenterList(IMMGraph& graph, const SeedSet& seeds, std::size_t distLimit)
         return res;
     }
 
+    auto dist = std::vector<std::size_t>(graph.nNodes(), utils::halfMax<std::size_t>);
     // BFS Initialization
     auto Q = std::queue<std::size_t>();
-    for (auto& node: graph.nodes()) {
-        node.dist = utils::halfMax<int>;
-    }
-    utils::ranges::concatForEach([&graph, &Q](const std::size_t& v) {
+
+    utils::ranges::concatForEach([&](std::size_t v) {
         Q.push(v);
-        graph[v].dist = 0;
+        dist[v] = 0;
     }, seeds.Sa(), seeds.Sr());
 
     for (; !Q.empty(); Q.pop()) {
         auto cur = Q.front();
 
-        for (auto& [to, link]: graph.fastLinksFrom(cur)) {
-            if (to.dist == utils::halfMax<int>) {
-                to.dist = graph[cur].dist + 1;
+        for (auto [to, link]: graph.fastLinksFrom(cur)) {
+            if (dist[index(to)] == utils::halfMax<std::size_t>) {
+                dist[index(to)] = dist[cur] + 1;
 
-                if (to.dist <= distLimit) {
+                if (dist[index(to)] <= distLimit) {
                     Q.push(index(to));
                     // Picks all the nodes with 1 <= distance <= distLimit
                     res.push_back(index(to));
@@ -316,46 +318,49 @@ auto getCenterList(IMMGraph& graph, const SeedSet& seeds, std::size_t distLimit)
 void SA_IMM_LB_Static_Process(
         PRRGraphCollectionSA&           prrCollection,
         const std::vector<std::size_t>& centerCandidates,
-        std::size_t                     nSamples,
+        std::uint64_t                   nSamples,
         IMMGraph&                       graph,
         const SeedSet&                  seeds,
         const StaticArgs_SA_IMM_LB&     args) {
-    auto finishCount = std::size_t{0};
-    auto timer = Timer();
+    auto progress = ProgressCounter("SA_IMM_LB", centerCandidates.size(), args.logPerPercentage);
+    // Creates a series of PRR-sketch objects for reusing in each thread
+    auto prrGraphPool = std::vector<PRRGraph>();
+    // Creates a series of link state objects for reusing in each thread
+    auto linkStatePool = std::vector<IMMLinkStateSamples>{};
+    // Creates a series of lists of double for reusing in each thread
+    auto vecPool = std::vector<std::vector<double>>{args.nThreads};
+
+    for (std::size_t i = 0; i < args.nThreads; i++) {
+        // Reserves before calling
+        prrGraphPool.push_back(PRRGraph{{
+            {"nodes", graph.nNodes()},
+            {"links", graph.nLinks()},
+            {"maxIndex", graph.nNodes()}
+        }});
+        // Initializes before calling
+        linkStatePool.emplace_back(graph.nLinks());
+    }
 
     auto update = [&](std::size_t v, const std::vector<double>& totalGainsByBoosted) {
         static auto mtx = std::mutex{};
         {
             auto lock = std::scoped_lock(mtx);
             prrCollection.add(v, nSamples, totalGainsByBoosted);
-
-            double r0 = 100.0 * (double)finishCount       / (double)centerCandidates.size();
-            double r1 = 100.0 * (double)(finishCount + 1) / (double)centerCandidates.size();
-            if (std::floor(r0 / args.logPerPercentage) != std::floor(r1 / args.logPerPercentage)) {
-                LOG_INFO(format("SA_IMM_LB: {:.1f}% finished. "
-                                "Total gain records added = {}. "
-                                "Total time elapsed since current process = {:.3f} sec.",
-                                r1 + 1e-6, prrCollection.nTotalRecords(), timer.elapsed().count()));
-            }
-
-            finishCount += 1;
+            progress.increment();
         }
     };
 
-    auto func = [&](std::size_t firstIndex, std::size_t lastIndex) {
-        auto prrGraph = PRRGraph({
-            {"nodes", graph.nNodes()},
-            {"links", graph.nLinks()},
-            {"maxIndex", graph.nNodes()}
-        });
-
-        for (std::size_t i = firstIndex; i != lastIndex; i++) {
-            auto v = centerCandidates[i];
+    runTaskGroup(vs::iota(std::size_t{0}, args.nThreads) | vs::transform([&](std::size_t tid) {
+        return [&, tid](std::size_t v) {
+            auto& linkState         = linkStatePool[tid];
+            auto& prrGraph          = prrGraphPool[tid];
             // curGainsByBoosted[s] = How much gain to current center node v if s is chosen as one boosted node
-            auto curGainsByBoosted = std::vector<double>(graph.nNodes());
+            auto& curGainsByBoosted = vecPool[tid];
+            // Clears before using
+            curGainsByBoosted.assign(graph.nNodes(), 0.0);
 
-            for (std::size_t j = 0; j < nSamples; j++) {
-                makeSketchSlow(graph, prrGraph, seeds, v);
+            for (std::uint64_t j = 0; j < nSamples; j++) {
+                makeSketchSlow(graph, linkState, prrGraph, seeds, v);
                 for (const auto& node: prrGraph.nodes()) {
                     double delta = gain(node.centerStateTo) - gain(prrGraph.centerState);
                     // Takes the sum
@@ -363,18 +368,8 @@ void SA_IMM_LB_Static_Process(
                 }
             }
             update(v, curGainsByBoosted);
-        }
-    };
-
-    auto tasks = std::vector<std::future<void>>();
-    for (std::size_t i = 0; i < args.nThreads; i++) {
-        auto first = centerCandidates.size() * i       / args.nThreads;
-        auto last  = centerCandidates.size() * (i + 1) / args.nThreads;
-        tasks.emplace_back(std::async(std::launch::async, func, first, last));
-    }
-    for (auto& t: tasks) {
-        t.get();
-    }
+        };
+    }), centerCandidates);
 }
 
 IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_SA_IMM_LB& args) {
@@ -482,7 +477,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
     auto nAttempts = (nCandidates >= args.k)
                      ? nCandidates * args.k - args.k * (args.k - 1) / 2
                      : (args.k + 1) * args.k / 2;
-    auto attemptCount = std::size_t{0};
+    auto progress = ProgressCounter("Greedy", nAttempts, args.logPerPercentage);
 
     // Early stop if no more nodes can be chosen
     for (auto i = std::size_t{0}; i != args.k && i != nCandidates; i++) {
@@ -497,15 +492,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
             gainV[v] += simulateBoosted(graph, seeds, res.boostedNodes, args.greedyTestTimes).totalGain;
             // Restores S
             res.boostedNodes.pop_back();
-
-            attemptCount += 1;
-            double r0 = 100.0 * (double)(attemptCount - 1) / (double)nAttempts;
-            double r1 = 100.0 * (double)(attemptCount)     / (double)nAttempts;
-            if (std::floor(r0 / args.logPerPercentage) != std::floor(r1 / args.logPerPercentage)) {
-                LOG_INFO(format("Greedy: {:.1f}% finished. "
-                                "Total time elapsed = {:.3f} sec.",
-                                r1 + 1e-6, timer.elapsed().count()));
-            }
+            progress.increment();
         }
 
         auto v = rs::max_element(gainV) - gainV.begin();
