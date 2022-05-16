@@ -232,7 +232,7 @@ requires(std::convertible_to<rs::range_value_t<Range>, std::size_t>) {
                 nodes[to].state = nodes[cur].state;
                 nodes[to].dist = nodes[cur].dist + 1;
             }
-                // Some other message has arrived in the same round, but current one has higher priority
+            // Some other message has arrived in the same round, but current one has higher priority
             else if (nodes[cur].dist + 1 == nodes[to].dist && compare(nodes[cur].state, nodes[to].state) > 0) {
                 nodes[to].state = nodes[cur].state;
             }
@@ -263,7 +263,7 @@ inline SimResultItem simulateBoostedOnce(
         Range&&                         boostedNodes) {
     auto linkStates = IMMLinkStateSamples(graph.nLinks());
     auto nodes = std::vector<NodeSimProperties>(graph.nNodes());
-    simulateBoostedOnce(graph, linkStates, nodes, seeds, std::forward<Range>(boostedNodes));
+    return simulateBoostedOnce(graph, linkStates, nodes, seeds, std::forward<Range>(boostedNodes));
 }
 
 /*!
@@ -281,7 +281,7 @@ inline SimResultItem simulateBoostedOnce(
  */
 template <rs::range Range> requires (std::convertible_to<rs::range_value_t<Range>, std::size_t>)
 SimResultItem simulateBoosted(
-        IMMGraph&       graph,
+        const IMMGraph& graph,
         const SeedSet&  seeds,
         Range&&         boostedNodes,
         std::size_t     simTimes,
@@ -323,7 +323,7 @@ SimResultItem simulateBoosted(
  */
 template <rs::range Range>
 SimResult simulate(
-        IMMGraph&       graph,
+        const IMMGraph& graph,
         const SeedSet&  seeds,
         Range&&         boostedNodes,
         std::size_t     simTimes,
@@ -357,7 +357,7 @@ SimResult simulate(
  */
 template <rs::range NodeRange, rs::range KRange>
 std::vector<SimResult> simulate(
-        IMMGraph&       graph,
+        const IMMGraph& graph,
         const SeedSet&  seeds,
         NodeRange&&     boostedNodes,
         KRange&&        kList,

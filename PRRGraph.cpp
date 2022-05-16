@@ -293,8 +293,8 @@ void calculateCenterStateToFast(PRRGraph& prrGraph)
     }
 }
 
-NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, std::size_t v) {
-    auto& vNode = prrGraph[v];
+NodeState _calculateCenterStateToSlow(PRRGraph& prrGraph, std::size_t maxIndex, std::size_t v) {
+    graph::NodeOrIndex auto& vNode = prrGraph[v];
     auto& centerNode = prrGraph.centerNode();
 
     // Boost the node v, Ca -> Ca+, or Cr -> Cr-
@@ -305,11 +305,9 @@ NodeState _calculateCenterStateToSlow(PRRGraph prrGraph, std::size_t maxIndex, s
         vNode.state = NodeState::CrMinus;
     }
 
-    // vis[u] = whether the node u has been pushed to the queue
-    auto vis = std::vector<bool>();
-    vis.assign(maxIndex + 1, false);
-
     auto Q = std::queue<PRRNode*>({&vNode});
+    // vis[u] = whether the node u has been pushed to the queue
+    auto vis = std::vector<bool>(maxIndex + 1, false);
     vis[v] = true;
 
     for (; !Q.empty(); Q.pop()) {

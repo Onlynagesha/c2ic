@@ -5,9 +5,9 @@
 #ifndef DAWNSEEKER_GRAPH_THREAD_H
 #define DAWNSEEKER_GRAPH_THREAD_H
 
-#include <future>
+#include <mutex>
 #include <ranges>
-#include <semaphore>
+#include <thread>
 
 template <class FuncRange, class Arg1Range, class... Args>
 inline void runTaskGroup(FuncRange&& funcRange, Arg1Range&& arg1Range, Args&&... restArgs) {

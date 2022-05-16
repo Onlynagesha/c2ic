@@ -260,6 +260,8 @@ namespace graph {
             }
         }
 
+        Graph(Graph&&) noexcept = default;
+
     private:
         // Helper function to reset the graph
         //  and index map (if _indexMap.clear() is provided)

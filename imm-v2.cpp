@@ -171,7 +171,7 @@ auto generateSamplesDynamic(IMMGraph& graph, const SeedSet& seeds, const Dynamic
     }
 
     if (prrCount < args.sampleLimit) {
-        theta = 2.0 * graph.nNodes() * (double)std::pow(args.alpha + args.beta, 2.0)
+        theta = 2.0 * (double)graph.nNodes() * (double)std::pow(args.alpha + args.beta, 2.0)
                 / LB / std::pow(args.epsilon, 2.0);
         LOG_INFO(format("LB = {:.0f}, theta = {:.0f}", LB, theta));
     }
@@ -195,7 +195,7 @@ IMMResult PR_IMM_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArg
 
     // totalGain = |V| * E(gains / |R|) where |V| = graph size, |R| = sample size
     resItem.totalGain = prrCollection.select(args.k, std::back_inserter(resItem.boostedNodes))
-                        / (double)prrCount * graph.nNodes();
+                        / (double)prrCount * (double)graph.nNodes();
     resItem.timeUsed = timer.elapsed().count();
     resItem.memoryUsage = prrCollection.totalBytesUsed();
 
@@ -223,7 +223,7 @@ IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_
         auto resItem = IMMResultItem{};
         // totalGain = |V| * E(gains / |R|) where |V| = graph size, |R| = sample size
         resItem.totalGain = prrCollection.select(args.k, std::back_inserter(resItem.boostedNodes))
-                            / (double)prrCount * graph.nNodes();
+                            / (double)prrCount * (double)graph.nNodes();
         resItem.timeUsed = timer.elapsed().count();
         resItem.memoryUsage = prrCollection.totalBytesUsed();
 

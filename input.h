@@ -89,7 +89,7 @@ inline auto handleInput(int argc, char** argv) {
     auto args   = getAlgorithmArgs(graph.nNodes(), argSet);
 
     return ResultType{
-        .graph = graph,
+        .graph = std::move(graph), // NOLINT(performance-move-const-arg)
         .seeds = std::move(seeds),
         .args  = std::move(args)
     };
