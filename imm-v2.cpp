@@ -131,7 +131,7 @@ void makeSketchSlow(
 }
 
 // Generate PRR-sketches
-auto generateSamplesDynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args)
+auto generateSamplesDynamic(const IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args)
 {
     auto LB = double{ 1.0 };
 
@@ -185,7 +185,7 @@ auto generateSamplesDynamic(IMMGraph& graph, const SeedSet& seeds, const Dynamic
     };
 }
 
-IMMResult PR_IMM_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args) {
+IMMResult PR_IMM_Dynamic(const IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args) {
     // Prepare parameters
     args.setEnv();
 
@@ -208,7 +208,7 @@ IMMResult PR_IMM_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArg
     };
 }
 
-IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_PR_IMM& args) {
+IMMResult PR_IMM_Static(const IMMGraph& graph, const SeedSet& seeds, const StaticArgs_PR_IMM& args) {
     // Prepare parameters
     args.setEnv();
 
@@ -241,7 +241,7 @@ IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_
     return res;
 }
 
-IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+IMMResult PR_IMM(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
     // Prepare global parameters
     args.setEnv();
 
@@ -265,7 +265,7 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
  * @param distLimit Distance threshold from a center node to the seeds
  * @return A list of center nodes after filtering.
  */
-auto getCenterList(IMMGraph& graph, const SeedSet& seeds, std::size_t distLimit) {
+auto getCenterList(const IMMGraph& graph, const SeedSet& seeds, std::size_t distLimit) {
     auto res = std::vector<std::size_t>();
 
     // Simply picks all
@@ -319,7 +319,7 @@ void SA_IMM_LB_Static_Process(
         PRRGraphCollectionSA&           prrCollection,
         const std::vector<std::size_t>& centerCandidates,
         std::uint64_t                   nSamples,
-        IMMGraph&                       graph,
+        const IMMGraph&                 graph,
         const SeedSet&                  seeds,
         const StaticArgs_SA_IMM_LB&     args) {
     auto progress = ProgressCounter("SA_IMM_LB", centerCandidates.size(), args.logPerPercentage);
@@ -372,7 +372,7 @@ void SA_IMM_LB_Static_Process(
     }), centerCandidates);
 }
 
-IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_SA_IMM_LB& args) {
+IMMResult SA_IMM_LB_Static(const IMMGraph& graph, const SeedSet& seeds, const StaticArgs_SA_IMM_LB& args) {
     // Prepare global parameters
     args.setEnv();
 
@@ -416,13 +416,13 @@ IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticAr
     return res;
 }
 
-IMMResult SA_IMM_LB_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_SA_IMM_LB& args) {
+IMMResult SA_IMM_LB_Dynamic(const IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_SA_IMM_LB& args) {
     // for dynamic cases, the sample size is already calculated as theta
     return SA_IMM_LB_Static(
             graph, seeds, StaticArgs_SA_IMM_LB(args, ArgsSampleSizeStatic((std::uint64_t)args.theta)));
 }
 
-IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+IMMResult SA_IMM_LB(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
     // Prepare global parameters
     args.setEnv();
 
@@ -435,7 +435,7 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
     }
 }
 
-IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args_) {
+IMMResult3 SA_IMM(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args_) {
     const auto& args = dynamic_cast<const Args_SA_IMM&>(args_);
     auto res = IMMResult3{};
 
@@ -452,7 +452,7 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args_)
     return res;
 }
 
-GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args_) {
+GreedyResult greedy(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args_) {
     const auto& args = dynamic_cast<const GreedyArgs&>(args_);
 
     // Prepare parameters
@@ -506,7 +506,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
 }
 
 template <std::invocable<std::size_t, std::size_t> Func>
-GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args, Func&& func) {
+GreedyResult naiveSolutionFramework(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args, Func&& func) {
     // Prepare parameters
     args.setEnv();
 
@@ -533,13 +533,13 @@ GreedyResult naiveSolutionFramework(IMMGraph& graph, const SeedSet& seeds, const
     return res;
 }
 
-GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+GreedyResult maxDegree(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return graph.inDegree(u) + graph.outDegree(u) > graph.inDegree(v) + graph.outDegree(v);
     });
 }
 
-GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+GreedyResult pageRank(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
     auto pr = graph::pageRank(graph);
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return pr[u] > pr[v];

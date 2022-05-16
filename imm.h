@@ -124,7 +124,7 @@ inline std::string toString(const IMMResultItem& item, int indent = 4) {
  * @param args Arguments of the algorithm
  * @return an IMMResult object as the algorithm result
  */
-IMMResult PR_IMM_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args);
+IMMResult PR_IMM_Dynamic(const IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_PR_IMM& args);
 
 
 /*!
@@ -137,7 +137,7 @@ IMMResult PR_IMM_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArg
  * @param args Arguments of the algorithm
  * @return an IMMResult object as the algorithm result
  */
-IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_PR_IMM& args);
+IMMResult PR_IMM_Static(const IMMGraph& graph, const SeedSet& seeds, const StaticArgs_PR_IMM& args);
 
 /*!
  * @brief Solves with PR-IMM algorithm. For monotonic & sub-modular cases only.
@@ -151,7 +151,7 @@ IMMResult PR_IMM_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_
  * @return an IMMResult object as the algorithm result
  * @throw std::bad_cast if args is neither DynamicArgs_PR_IMM nor StaticArgs
  */
-IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+IMMResult PR_IMM(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
 /*!
  * @brief Solves the lower bound part of SA-IMM or SA-RG-IMM algorithm with dynamic sample size.
@@ -163,7 +163,7 @@ IMMResult PR_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
  * @param args Arguments of the algorithm
  * @return an IMMResult object as the algorithm result
  */
-IMMResult SA_IMM_LB_Dynamic(IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_SA_IMM_LB& args);
+IMMResult SA_IMM_LB_Dynamic(const IMMGraph& graph, const SeedSet& seeds, const DynamicArgs_SA_IMM_LB& args);
 
 /*!
  * @brief Solves the lower bound part of SA-IMM or SA-RG-IMM algorithm with fixed sample sizes.
@@ -175,7 +175,7 @@ IMMResult SA_IMM_LB_Dynamic(IMMGraph& graph, const SeedSet& seeds, const Dynamic
  * @param args Arguments of the algorithm
  * @return an IMMResult object as the algorithm result
  */
-IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticArgs_SA_IMM_LB& args);
+IMMResult SA_IMM_LB_Static(const IMMGraph& graph, const SeedSet& seeds, const StaticArgs_SA_IMM_LB& args);
 
 /*!
  * @brief Solves the lower bound part of SA-IMM or SA-RG-IMM algorithm.
@@ -189,7 +189,7 @@ IMMResult SA_IMM_LB_Static(IMMGraph& graph, const SeedSet& seeds, const StaticAr
  * @return an IMMResult object as the algorithm result
  * @throw std::bad_cast if args is neither DynamicArgs_PR_IMM nor StaticArgs
  */
-IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+IMMResult SA_IMM_LB(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
 /*!
  * @brief Solves with SA-IMM (for monotonic cases only) & SA-RG-IMM algorithm. For non-submodular cases.
@@ -204,7 +204,7 @@ IMMResult SA_IMM_LB(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
  * @return an IMMResult3 object as the algorithm result.
  * @throw std::bad_cast if conversion of argument type fails.
  */
-IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+IMMResult3 SA_IMM(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
 /*!
  * @brief Solves with greedy algorithm.
@@ -232,7 +232,7 @@ IMMResult3 SA_IMM(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
  * @return A GreedyResult object as the algorithm result.
  * @throw std::bad_cast if args is not GreedyArgs
  */
-GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+GreedyResult greedy(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
 /*!
  * @brief Solves with max-degree algorithm.
@@ -244,7 +244,7 @@ GreedyResult greedy(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args
  * @param args Arguments of the algorithm
  * @return A GreedyResult object as the algorithm result.
  */
-GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+GreedyResult maxDegree(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
 /*!
  * @brief Solves with PageRank algorithm.
@@ -256,54 +256,7 @@ GreedyResult maxDegree(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& a
  * @param args Arguments of the algorithm
  * @return A GreedyResult object as the algorithm result.
  */
-GreedyResult pageRank(IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
+GreedyResult pageRank(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args);
 
-/*!
- * @brief Dumps the IMMResult3 object as a multi-line string.
- *
- * The format is as the following example
- * (indentation spaces are replaced as - for clarity, take indentation = 4 as example):
- *
- *      {
- *      ----'Lower bound': {
- *      --------.totalGain = 1.234,
- *      --------.boostedNodes = {1, 2, 3, 4}
- *      ----},
- *      ----'Upper bound': {
- *      --------.totalGain = 1.432,
- *      --------.boostedNodes = {1, 2, 3, 5}
- *      ----},
- *      ----'Objective function': {
- *      --------.totalGain = 1.333,
- *      --------.boostedNodes = {1, 2, 4, 5}
- *      ----}
- *      }
- *
- * Indentation size should be non-negative. If a negative value is provided, it's treated as 0.
- *
- * @param item The IMMResult3 object
- * @param indent Indentation width
- * @return A multi-line string, without trailing new-line character
- */
-//inline std::string toString(const IMMResult3& item, int indent = 4) {
-//    // Negative indentation is treated as 0
-//    indent = std::max(0, indent);
-//
-//    auto res = std::string("{");
-//    for (std::size_t i = 0; i < 3; i++) {
-//        res += "\n" + std::string(indent, ' ');
-//        res += format("'{0}': {1}", item.labels[i], toString(item[i], indent));
-//        // Removes the trailing '}' temporarily
-//        res.pop_back();
-//        // And then adds it back with indentation
-//        res += std::string(indent, ' ') + '}';
-//        // Appends comma after the first 2 IMMResultItem string representations.
-//        if (i < 2) {
-//            res += ',';
-//        }
-//    }
-//    res += "\n}";
-//    return res;
-//}
 
 #endif //DAWNSEEKER_IMM_H

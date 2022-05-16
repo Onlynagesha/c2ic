@@ -7,8 +7,18 @@
 
 #include "immbasic.h"
 
+/*!
+ * @brief Node type of the graph, which simply contains the index as an unsigned integer, in the range [0, |V|-1]
+ */
 using IMMNode = graph::BasicNode<std::size_t>;
 
+/*!
+ * @brief Link type of the graph.
+ *
+ * Besides (from, to) as the indices of nodes, the link type also contains:
+ *   - index: an unsigned integer in range [0, |E|-1], a unique identifier for each link
+ *   - p, pBoost: probability during sampling
+ */
 struct IMMLink: graph::BasicLink<std::size_t> {
     // index = 0, 1, 2 ... |E|-1
     std::size_t index;
@@ -21,14 +31,18 @@ struct IMMLink: graph::BasicLink<std::size_t> {
             BasicLink(from, to), index(linkIndex), p(p), pBoost(pBoost) {}
 };
 
-// Graph type for IMM algorithms
+/*!
+ * @brief The graph type.
+ */
 using IMMGraph = graph::Graph<
         IMMNode,
         IMMLink,
         graph::IdentityIndexMap
         >;
 
-// Node type in the PRR-sketch
+/*!
+ * @brief Node type of the PRR-sketch subgraph.
+ */
 struct PRRNode : graph::BasicNode<std::size_t> { // NOLINT(cppcoreguidelines-pro-type-member-init)
     // Which state this node will become if no boosted node exists
     // Ca, Cr, or None, according to which kind of message comes first
@@ -50,6 +64,9 @@ struct PRRNode : graph::BasicNode<std::size_t> { // NOLINT(cppcoreguidelines-pro
             BasicNode(index), dist(dist) {}
 };
 
+/*!
+ * @brief Link type of the PRR-sketch subgraph.
+ */
 struct PRRLink: graph::BasicLink<std::size_t> {
     LinkState   state;
 
@@ -58,12 +75,17 @@ struct PRRLink: graph::BasicLink<std::size_t> {
     PRRLink(std::size_t from, std::size_t to, LinkState state): BasicLink(from, to), state(state) {}
 };
 
+/*!
+ * @brief PRR-sketch subgraph type.
+ */
 using PRRGraphBase = graph::Graph<
         PRRNode, PRRLink,
         graph::LinearIndexMap
 >;
 
-// Graph type of the PRR-sketch
+/*!
+ * @brief Graph type of PRR-sketches.
+ */
 struct PRRGraph: PRRGraphBase {
     // Index of the center node
     std::size_t center{};
