@@ -33,12 +33,9 @@ int mainWorker(int argc, char** argv) {
 
     if (args->algo == AlgorithmLabel::PR_IMM) {
         auto res = PR_IMM(graph, seeds, *args);
-        // todo
-        //LOG_INFO("Final result of PR-IMM algorithm: " + toString(res));
         doSimulation(graph, seeds, res, *args);
     } else if (args->algo == AlgorithmLabel::SA_IMM || args->algo == AlgorithmLabel::SA_RG_IMM) {
         auto res = SA_IMM(graph, seeds, *args);
-        // todo
         for (auto i: {0, 1}) {
             LOG_INFO(format("Starts simulation for the result of label '{}':", res.labels[i]));
             doSimulation(graph, seeds, res[i], *args);
@@ -52,9 +49,9 @@ int mainWorker(int argc, char** argv) {
         } else if (args->algo == AlgorithmLabel::PageRank) {
             res = pageRank(graph, seeds, *args);
         } else {
-            throw std::logic_error("Unexpected case: unimplemented or wrong logic");
+            throw std::logic_error("Unexpected case of algorithm selection: unimplemented or wrong logic");
         }
-        // todo
+        LOG_INFO(format("Result of {} algorithm: {}", args->algo, utils::join(res.boostedNodes, ", ", "[", "]")));
         doSimulation(graph, seeds, res.boostedNodes, *args);
     }
 

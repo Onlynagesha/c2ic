@@ -9,13 +9,20 @@
 #include "args-v2.h"
 #include "graphbasic.h"
 
-/*
-* Reads the graph.
-* File format:
-* The first line contains two integers V, E, denoting number of nodes and links
-* Then E lines, each line contains 4 values u, v, p, pBoost
-*   indicating a directed link u -> v with probabilities p and pBoost
-*/
+/*!
+ * @brief Reads the graph from given input stream.
+ *
+ * Format of input:
+ *   - First line: two positive integers V, E, number of nodes and links of the graph;
+ *   - Then E lines, each line contains 4 values u, v, p, pBoost
+ *     indicating a directed link u -> v with probabilities p and pBoost.
+ *
+ * Requirements of input values:
+ *   - Node indices should be in the range [0, E-1]
+ *
+ * @param in Input stream
+ * @return The graph object
+ */
 inline IMMGraph readGraph(std::istream& in) {
     auto graph = IMMGraph(graph::tags::reservesLater);
 
@@ -39,6 +46,14 @@ inline IMMGraph readGraph(std::istream& in) {
     return graph;
 }
 
+/*!
+ * @brief Reads the graph from given file path.
+ *
+ * See readGraph(std::istream&) for details.
+ *
+ * @param path Path of the input file
+ * @return The graph object.
+ */
 inline IMMGraph readGraph(const fs::path& path) {
     auto fin = std::ifstream(path);
     if (!fin.is_open()) {
@@ -47,13 +62,17 @@ inline IMMGraph readGraph(const fs::path& path) {
     return readGraph(fin);
 }
 
-/*
- * Reads the seed set.
- * File format:
- * The first line contains an integer Na, number of positive seeds.
- * The next line contains Na integers, indices of the positive seeds.
- * The third line contains an integer Nr, number of negative seeds.
- * The fourth line contains Nr integers, indices of the negative seeds
+/*!
+ * @brief Reads the seed set from given input stream.
+ *
+ * Input format:
+ *   - First line: an integer N_a, number of seeds with positive information;
+ *   - Second line: N_a integers, indices of positive seed nodes;
+ *   - Third line: an integer N_r, number of seeds with negative information;
+ *   - Fourth line: N_r integers, indices of negative seed nodes.
+ *
+ * @param in Input stream
+ * @return The seed set object.
  */
 inline SeedSet readSeedSet(std::istream& in) {
     std::size_t Na, Nr;
@@ -68,6 +87,14 @@ inline SeedSet readSeedSet(std::istream& in) {
     return {std::move(Sa), std::move(Sr)};
 }
 
+/*!
+ * @brief Reads the seed set from the file with given path.
+ *
+ * See readSeedSet(std::istream& for details.
+ *
+ * @param path File path
+ * @return The seed set object.
+ */
 inline SeedSet readSeedSet(const fs::path& path) {
     auto fin = std::ifstream(path);
     if (!fin.is_open()) {
@@ -76,6 +103,19 @@ inline SeedSet readSeedSet(const fs::path& path) {
     return readSeedSet(fin);
 }
 
+/*!
+ * @brief An all-in-one interface to handle input.
+ *
+ * The function processes as the following:
+ *   - Parses the program arguments (argc, argv) and wraps all the algorithm arguments into an object
+ *     (see prepareProgramArgs and getAlgorithmArgs for details);
+ *   - Reads the graph and seed set from given file path
+ *     (see readGraph and readSeedSet for details).
+ *
+ * @param argc
+ * @param argv
+ * @return A structure as {graph, seeds, args}
+ */
 inline auto handleInput(int argc, char** argv) {
     struct ResultType {
         IMMGraph            graph;

@@ -913,10 +913,32 @@ struct GreedyArgs: BasicArgs {
 
 using AlgorithmArgsPtr = std::unique_ptr<BasicArgs>;
 
-// todo: doxygen
+/*!
+ * @brief Generates a ProgramArgs object with the program arguments (argc, argv).
+ * @param argc
+ * @param argv
+ * @return The ProgramArgs object that wraps all the program arguments.
+ */
 ProgramArgs prepareProgramArgs(int argc, char** argv);
 
-// todo: doxygen
+/*!
+ * @brief Generates a algorithm argument object with given graph size |V| and program args.
+ *
+ * A polymorphic object is obtained according to which algorithm to use:
+ *   - For PR-IMM algorithm, DynamicArgs_PR_IMM or StaticArgs_PR_IMM is obtained depending on which mode is used.
+ *     The latter is used if the program argument '-n-samples' is provided.
+ *     Otherwise, '-epsilon' should be provided.
+ *   - For SA-(RG-)IMM algorithm, its arguments contain two parts:
+ *     - Upper bound: [Dynamic|Static]Args_PR_IMM (depending on whether '-n-samples' is provided)
+ *     - Lower bound: [Dynamic|Static]Args_SA_IMM_LB. (depending on whether '-n-samples-sa' is provided).
+ *       For the dynamic case, '-epsilon-sa' shall be provided.
+ *   - For Greedy algorithm: GreedyArgs
+ *   - For others: BasicArgs
+ *
+ * @param n Graph size |V|
+ * @param args The program arguments, see prepareProgramArgs(argc, argv) for details.
+ * @return A smart pointer to the allocated polymorphic object with all the algorithm arguments.
+ */
 AlgorithmArgsPtr getAlgorithmArgs(std::size_t n, const ProgramArgs& args);
 
 #endif //DAWNSEEKER_GRAPH_ARGS_V2_H

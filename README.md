@@ -72,9 +72,9 @@ Otherwise, sample set size per center $\delta$ is determined by $\epsilon_2$, $\
 `-n-samples-sa` can be either a positive integer or a list of positive integers. See `-n-samples` in PR-IMM algorithm for details.
 
 ### Dynamic sample set size
+* `-sample-limit-sa`: Limit of theta_sa in SA-(RG-)IMM algorithm [default: +inf]
 * `-epsilon-sa`: $\epsilon_2$ in SA-(RG-)IMM algorithm [required]
 * `-ell`: $\ell$ [default: 1]
-* `-sample-limit-sa`: Limit of theta_sa in SA-(RG-)IMM algorithm [default: +inf]
 
 ## Greedy algorithm
 
