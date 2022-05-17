@@ -914,7 +914,7 @@ struct GreedyArgs: BasicArgs {
      */
     [[nodiscard]] std::string dump() const override {
         auto res = BasicArgs::dump() + dumpDelimiter;
-        res += format("greedyTestTimes = {}", greedyTestTimes);
+        res += format("greedyTestTimes = {} (default = {})", greedyTestTimes, greedyTestTimesDefault);
         return res;
     }
 };
