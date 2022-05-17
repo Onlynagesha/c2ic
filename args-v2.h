@@ -848,17 +848,25 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
      *
      * The result is either DynamicArgs_SA_IMM_LB for dynamic sample size, or StaticArgs_SA_IMM_LB for the static.
      *
+     * todo WORKAROUND: nThreads is set to 1 to prevent multithreading bug
+     *
      * @return A shared pointer to the argument object copied.
      * @throw std::bad_cast for unexpected cases.
      */
-    [[nodiscard]] std::shared_ptr<BasicArgs> argsLB() const {
+    [[nodiscard]] auto argsLB() const {
+        auto res = std::shared_ptr<BasicArgs>();
+
         if (auto p1 = std::dynamic_pointer_cast<ArgsSampleSizeDynamic_SA_IMM_LB>(LB); p1 != nullptr) {
-            return std::make_shared<DynamicArgs_SA_IMM_LB>(*this, *p1);
+            res = std::make_shared<DynamicArgs_SA_IMM_LB>(*this, *p1);
         } else if (auto p2 = std::dynamic_pointer_cast<ArgsSampleSizeStatic>(LB); p2 != nullptr) {
-            return std::make_shared<StaticArgs_SA_IMM_LB>(*this, *p2);
+            res = std::make_shared<StaticArgs_SA_IMM_LB>(*this, *p2);
         } else {
             throw std::bad_cast();
         }
+
+        // todo WORKAROUND: nThreads is set to 1 to prevent multithreading bug
+        res->nThreads = 1;
+        return res;
     }
 
     /*!
