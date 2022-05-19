@@ -6,10 +6,13 @@
 #define DAWNSEEKER_GREEDYSELECT_H
 
 #include <utility>
-
 #include "immbasic.h"
 #include "Logger.h"
 #include "PRRGraph.h"
+#include "utils/numeric.h"
+#include "utils/random.h"
+#include "utils/ranges.h"
+#include "utils/misc.h"
 
 /*!
  * @brief Collection of all PRR-sketches in PR-IMM algorithm, for monotonic & submodular cases only.
@@ -249,16 +252,18 @@ public:
      * @return a multiline string, without trailing new-line character.
      */
     [[nodiscard]] std::string dump() const {
-        auto info = format("Graph size |V| = {}\nNumber of PRR-sketches stored = {}\n", n, prrGraph.size());
+        auto info = "Graph size |V| = " + toString(n) + '\n';
+        info += "Number of PRR-sketches stored = " + toString(prrGraph.size()) + '\n';
 
         // Dumps total and average number of nodes
         auto nNodes = nTotalNodes();
-        info += format(
-                "Total number of nodes = {}, {:.3f} per PRR-sketch in average\n", nNodes,
-                1.0 * (double) nNodes / (double) prrGraph.size());
+        info += "Total number of nodes = " + toString(nNodes)
+                + ", " + toString(1.0 * (double) nNodes / (double) prrGraph.size(), 'f', 3)
+                + " per PRR-sketch in average\n";
 
         // Dumps memory usage
-        info += format("Memory used = {}", totalBytesUsedToString(totalBytesUsed()));
+        info += "Memory used = " + totalBytesUsedToString(totalBytesUsed());
+
         return info;
     }
 };
@@ -533,17 +538,16 @@ public:
      * @return a multiline string, without trailing new-line character.
      */
     [[nodiscard]] std::string dump() const {
-        auto info = format("Graph size |V| = {}\n", n);
+        auto info = "Graph size |V| = " + toString(n) + '\n';
 
         // Dumps total and average number of nodes
         auto nRecords = nTotalRecords();
-        info += format(
-                "Total number of records = {}, {:.3f} per node in average\n", nRecords,
-                1.0 * (double) nRecords / (double) n
-        );
+        info += "Total number of records = " + toString(nRecords)
+                + ", " + toString(1.0 * (double) nRecords / (double) n, 'f', 3)
+                + " per node in average\n";
 
         // Dumps memory used
-        info += format("Memory used = {}", totalBytesUsedToString(totalBytesUsed()));
+        info += "Memory used = " + totalBytesUsedToString(totalBytesUsed());
         return info;
     }
 };
