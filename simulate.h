@@ -115,16 +115,16 @@ public:
 
         double total = 0.0 + item.noneCount + item.caPlusCount + item.caCount + item.crCount + item.crMinusCount;
         auto res = std::string("{\n");
-        res += indentStr + format("Gain: (positive, negative, total) = ({:.3f}, {:.3f}, {:.3f})\n",
-                                  item.positiveGain, item.negativeGain, item.totalGain);
-        res += indentStr + format("Node count: (None, Ca+, Ca, Cr, Cr-) = ({}, {}, {}, {}, {}); "
-                                  "Percentage = ({:.2f}, {:.2f}, {:.2f}, {:.2f}, {:.2f})\n",
-                                  item.noneCount, item.caPlusCount, item.caCount, item.crCount, item.crMinusCount,
-                                  100 * item.noneCount      / total,
-                                  100 * item.caPlusCount    / total,
-                                  100 * item.caCount        / total,
-                                  100 * item.crCount        / total,
-                                  100 * item.crMinusCount   / total);
+        res += indentStr + format("Gain:       {:<19} {:<19} {:<19}\n",
+                                  format("Positive: {:.3f}", item.positiveGain),
+                                  format("Negative: {:.3f}", item.negativeGain),
+                                  format("Total: {:.3f}", item.totalGain));
+        res += indentStr + format("Node count: {:<15} {:<15} {:<15} {:<15} {:<15}\n",
+                                  format("None: {:.3f}", item.noneCount),
+                                  format("Ca+: {:.3f}", item.caPlusCount),
+                                  format("Ca: {:.3f}", item.caCount),
+                                  format("Cr: {:.3f}", item.crCount),
+                                  format("Cr-: {:.3f}", item.crMinusCount));
         res += "}";
         return res;
     }
@@ -141,9 +141,13 @@ struct SimResult {
     withBoosted(with), withoutBoosted(without), diff(with - without) {}
 };
 
-inline std::string toString(const SimResult& res) {
-    return format("with boosted: {},\nwithout boosted: {},\ndiff: {}",
-                  res.withBoosted, res.withoutBoosted, res.diff);
+inline std::string toString(const SimResult& res, bool showDiffOnly = false) {
+    if (showDiffOnly) {
+        return toString(res.diff);
+    } else {
+        return format("with boosted: {},\nwithout boosted: {},\ndiff: {}",
+                      res.withBoosted, res.withoutBoosted, res.diff);
+    }
 }
 
 namespace {

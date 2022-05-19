@@ -15,7 +15,7 @@ void doSimulation(
     auto simRes = simulate(graph, seeds, boostedNodes, args.kList, args.testTimes, args.nThreads);
     for (std::size_t i = 0; i != args.kList.size(); i++) {
         LOG_INFO(format("Simulation results with k = {}: {}",
-                        args.kList[i], simRes[i]));
+                        args.kList[i], toString(simRes[i], true)));
     }
 }
 
