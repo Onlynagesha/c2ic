@@ -7,6 +7,8 @@
 #include "Logger.h"
 #include "simulate.h"
 
+// todo: Handle output
+
 void doSimulation(
         IMMGraph&                       graph,
         const SeedSet&                  seeds,

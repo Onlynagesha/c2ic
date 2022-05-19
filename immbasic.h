@@ -5,7 +5,9 @@
 #include <algorithm>
 #include <array>
 #include <compare>
+#include <iomanip>
 #include <random>
+#include <sstream>
 #include <vector>
 
 struct ReturnsValueTag {};
@@ -108,7 +110,6 @@ inline NodeStatePriorityArray nodeStatePriority;
 *   in GCC 11.2 and/or other compilers
 *  Use explicit operator <=> instead. e.g. (A <=> B) == std::strong_ordering::greater
 */
-[[deprecated("Bug-prone with GCC")]]
 inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
     return nodeStatePriority[static_cast<int>(A)] <=> nodeStatePriority[static_cast<int>(B)];
 }
@@ -462,30 +463,28 @@ struct NodePriorityProperty {
         using enum NodeState;
 
         // Dumps priority array
-        auto res = format("Priority values:\n");
+        auto res = std::ostringstream("Priority values:\n");
         for (auto s: {None, CaPlus, Ca, Cr, CrMinus}) {
-            res += format("    {:<4} => {}\n", toString(s), array[(int)s]);
+            res << "    " << std::left << std::setw(4) << toString(s) << " => " << array[(int)s] << '\n';
         }
 
         // Dumps comparison matrix
-        res += format("Comparison matrix of L <=> R:\nL\\R  Ca+  Ca  Cr Cr-\n");
+        res << "Comparison matrix of L <=> R:\nL\\R  Ca+  Ca  Cr Cr-\n";
         for (auto lhs: {CaPlus, Ca, Cr, CrMinus}) {
-            res += format("{:<4}", toString(lhs));
+            res << std::left << std::setw(4) << toString(lhs);
             for (auto rhs: {CaPlus, Ca, Cr, CrMinus}) {
                 int c = compare(array, lhs, rhs);
-                res += format("{:>4}", c > 0 ? '>' : c == 0 ? '=' : '<');
+                res << std::right << std::setw(4) << (c > 0 ? '>' : c == 0 ? '=' : '<');
             }
-            res.push_back('\n');
+            res.put('\n');
         }
 
         // Dumps property
-        res += format("Property: {}monotonic & {}submodular ({} - {})",
-                      monotonic ? "" : "non-",
-                      submodular ? "" : "non-",
-                      monotonic ? "M" : "nM",
-                      submodular ? "S" : "nS");
+        res << "Property: " << (monotonic ? "" : "non-") << "monotonic & "
+            << (submodular ? "" : "non-") << "submodular ("
+            << (monotonic ? "M" : "nM") << " - " << (submodular ? "S" : "nS") << ")";
 
-        return res;
+        return res.str();
     }
 };
 

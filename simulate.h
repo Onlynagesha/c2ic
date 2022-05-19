@@ -6,6 +6,7 @@
 #define DAWNSEEKER_SIMULATE_H
 
 #include <queue>
+#include <sstream>
 #include "graphbasic.h"
 #include "immbasic.h"
 #include "thread.h"
@@ -114,19 +115,18 @@ public:
         auto indentStr = std::string(indent, ' ');
 
         double total = 0.0 + item.noneCount + item.caPlusCount + item.caCount + item.crCount + item.crMinusCount;
-        auto res = std::string("{\n");
-        res += indentStr + format("Gain:       {:<19} {:<19} {:<19}\n",
-                                  format("Positive: {:.3f}", item.positiveGain),
-                                  format("Negative: {:.3f}", item.negativeGain),
-                                  format("Total: {:.3f}", item.totalGain));
-        res += indentStr + format("Node count: {:<15} {:<15} {:<15} {:<15} {:<15}\n",
-                                  format("None: {:.3f}", item.noneCount),
-                                  format("Ca+: {:.3f}", item.caPlusCount),
-                                  format("Ca: {:.3f}", item.caCount),
-                                  format("Cr: {:.3f}", item.crCount),
-                                  format("Cr-: {:.3f}", item.crMinusCount));
-        res += "}";
-        return res;
+        auto res = std::ostringstream("{\n");
+        res << indentStr << "Positive gain = " << toString(item.positiveGain, 'f', 3) << '\n';
+        res << indentStr << "Negative gain = " << toString(item.negativeGain, 'f', 3) << '\n';
+        res << indentStr << "   Total gain = " << toString(item.totalGain, 'f', 3) << '\n';
+        res << indentStr << "Count of None = " << toString(item.noneCount, 'f', 3) << '\n';
+        res << indentStr << "Count of  Ca+ = " << toString(item.caPlusCount, 'f', 3) << '\n';
+        res << indentStr << "Count of  Ca  = " << toString(item.caCount, 'f', 3) << '\n';
+        res << indentStr << "Count of  Cr  = " << toString(item.crCount, 'f', 3) << '\n';
+        res << indentStr << "Count of  Cr- = " << toString(item.crMinusCount, 'f', 3) << '\n';
+
+        res << "}";
+        return res.str();
     }
 };
 
@@ -145,8 +145,9 @@ inline std::string toString(const SimResult& res, bool showDiffOnly = false) {
     if (showDiffOnly) {
         return toString(res.diff);
     } else {
-        return format("with boosted: {},\nwithout boosted: {},\ndiff: {}",
-                      res.withBoosted, res.withoutBoosted, res.diff);
+        return "with boosted: " + toString(res.withBoosted)
+        + ",\nwithout boosted: " + toString(res.withoutBoosted)
+        + ",\ndiff: " + toString(res.diff);
     }
 }
 

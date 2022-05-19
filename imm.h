@@ -52,7 +52,7 @@ struct IMMResult {
     const IMMResultItem& operator [] (std::uint64_t nSamples) {
         auto it = items.find(nSamples);
         if (it == items.end()) {
-            throw std::invalid_argument(format("Invalid sample size {}", nSamples));
+            throw std::invalid_argument("Invalid sample size " + toString(nSamples));
         }
         return it->second;
     }
@@ -104,11 +104,11 @@ inline std::string toString(const IMMResultItem& item, int indent = 4) {
     auto indentStr = std::string(indent, ' ');
     auto res = std::string{"{\n"};
 
-    res += indentStr + format(".boostedNodes = {},\n", join(item.boostedNodes, ", ", "{", "}"));
-    res += indentStr + format(".totalGain = {},\n",
-                              (item.totalGain <= halfMin<double> ? "-inf" : toString(item.totalGain, 'f', 3)));
-    res += indentStr + format(".timeUsed = {:.3f} sec.\n", item.timeUsed);
-    res += indentStr + format(".memoryUsage = {}\n", utils::totalBytesUsedToString(item.memoryUsage));
+    res += indentStr + ".boostedNodes = " + join(item.boostedNodes, ", ", "{", "}") + ",\n";
+    res += indentStr + ".totalGain = "
+            + (item.totalGain <= halfMin<double> ? "-inf" : toString(item.totalGain, 'f', 3)) + ",\n";
+    res += indentStr + ".timeUsed = " + toString(item.timeUsed, 'f', 3) + " sec.\n";
+    res += indentStr + ".memoryUsage = " + utils::totalBytesUsedToString(item.memoryUsage) + "\n";
 
     res += "}";
     return res;

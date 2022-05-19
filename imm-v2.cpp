@@ -1,3 +1,5 @@
+#pragma clang diagnostic push
+#pragma ide diagnostic ignored "EmptyDeclOrStmt"
 //
 // Created by Onlynagesha on 2022/5/7.
 //
@@ -547,3 +549,4 @@ GreedyResult pageRank(const IMMGraph& graph, const SeedSet& seeds, const BasicAr
         return pr[u] > pr[v];
     });
 }
+#pragma clang diagnostic pop
