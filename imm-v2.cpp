@@ -534,12 +534,14 @@ GreedyResult naiveSolutionFramework(const IMMGraph& graph, const SeedSet& seeds,
 }
 
 GreedyResult maxDegree(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+    LOG_INFO("Starts maxDegree algorithm");
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return graph.inDegree(u) + graph.outDegree(u) > graph.inDegree(v) + graph.outDegree(v);
     });
 }
 
 GreedyResult pageRank(const IMMGraph& graph, const SeedSet& seeds, const BasicArgs& args) {
+    LOG_INFO("Starts PageRank algorithm");
     auto pr = graph::pageRank(graph);
     return naiveSolutionFramework(graph, seeds, args, [&](std::size_t u, std::size_t v) {
         return pr[u] > pr[v];
