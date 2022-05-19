@@ -27,9 +27,9 @@ enum class AlgorithmLabel {
 };
 
 /*!
- * @brief Converts an AlgorithmLabel to its corresponding name as std::string.
+ * @brief Converts an <code>AlgorithmLabel</code> to its corresponding name as <code>std::string</code>.
  * @param label 
- * @return A std::string object as its name.
+ * @return A <code>std::string</code> object as its name.
  */
 inline std::string toString(AlgorithmLabel label) {
     switch (label) {
@@ -54,19 +54,29 @@ inline std::string toString(AlgorithmLabel label) {
  * @brief Gets the algorithm label by algorithm name and/or node state priority.
  * 
  * Algorithm name is case-insensitive. Valid algorithm names are:
- *   - `greedy`: Greedy algorithm
- *   - `max-degree` or `MaxDegree`: Max-degree algorithm, picking the nodes with the highest degree
- *   - `pagerank` or `PageRank`: PageRank algorithm, picking the nodes with the highest PageRank value
- *   - `pr-imm`: PR-IMM algorithm (for monotonic & submodular cases)
- *   - `sa-imm`: SA-IMM algorithm (for monotonic & non-submodular cases)
- *   - `sa-rg-imm`: SA-RG-IMM algorithm (for non-monotonic & non-submodular cases)
- *   - `auto`: One of PR-IMM, SA-IMM or SA-RG-IMM according to node state priority.
+ * <ul>
+ *   <li> <code>greedy</code>: Greedy algorithm
+ *   <li> <code>max-degree</code> or <code>MaxDegree</code>:
+ *          Max-degree algorithm, picking the nodes with the highest degree
+ *   <li> <code>pagerank</code> or <code>PageRank</code>:
+ *          PageRank algorithm, picking the nodes with the highest PageRank value
+ *   <li> <code>pr-imm</code>: PR-IMM algorithm (for monotonic & submodular cases)
+ *   <li> <code>sa-imm</code>: SA-IMM algorithm (for monotonic & non-submodular cases)
+ *   <li> <code>sa-rg-imm</code>: SA-RG-IMM algorithm (for non-monotonic & non-submodular cases)
+ *   <li> <code>auto</code>: One of PR-IMM, SA-IMM or SA-RG-IMM according to node state priority.
+ * </ul>
+ *
+ * args should contain:
+ * <ul>
+ *   <li> <code>args["priority"]</code> as case-insensitive string:
+ *          string representation of node state priority (see <code>NodePriorityProperty::of</code> for details).
+ * </ul>
  *   
  * An exception is thrown if algorithm name does not match any of them above. 
  * 
  * @param algo Case-insensitive string as the algorithm name.
  * @param priority Node state priority.
- * @return The corresponding AlgorithmLabel
+ * @return The corresponding <code>AlgorithmLabel</code>
  * @throw std::invalid_argument if no valid algorithm label is matched.
  */
 inline AlgorithmLabel getAlgorithmLabel(const utils::ci_string& algo, const NodePriorityProperty& priority) {
@@ -107,16 +117,19 @@ inline AlgorithmLabel getAlgorithmLabel(const utils::ci_string& algo, const Node
 }
 
 /*!
- * @brief Gets the algorithm label by algorithm name and/or node state priority.
- * 
+ * @brief Gets the algorithm label by the node state priority.
+ *
  * args should contain:
- *   - args["priority"] as case-insensitive string: string representation of node state priority.
- *   - (Optional) args["algo"] as case-insensitive string: algorithm name. `auto` by default.
- *   
- * See getAlgorithmLabel(algo, priority) for details.
+ * <ul>
+ *   <li> <code>args["priority"]</code> as case-insensitive string:
+ *          string representation of node state priority (see <code>NodePriorityProperty::of</code> for details).
+ *   <li> (Optional) <code>args["algo"]</code> as case-insensitive string:
+ *          algorithm name. <code>auto</code> by default.
+ * </ul>
  * 
- * @param args The ProgramArgs object as argument collection.
- * @return The corresponding AlgorithmLabel
+ * @param args The <code>ProgramArgs</code> object as argument collection.
+ * @return The corresponding <code>AlgorithmLabel</code>
+ * @see <code>getAlgorithmLabel(algo, priority)</code>
  */
 inline AlgorithmLabel getAlgorithmLabel(const ProgramArgs& args) {
     return getAlgorithmLabel(
@@ -128,15 +141,19 @@ inline AlgorithmLabel getAlgorithmLabel(const ProgramArgs& args) {
 /*!
  * @brief Checks whether the argument collection provides fixed sample size for given algorithm.
  *
- * For PR-IMM algorithm, checks on args["n-samples"]:
- *   - Whether this argument exists
- *   - Whether it contains a positive integer, or a list of positive integers.
- *
- * For SA-IMM and SA-RG-IMM algorithm, checks on args["n-samples-sa"] instead.
- *
+ * For PR-IMM algorithm, checks on <code>args["n-samples"]</code>:
+ * <ul>
+ *   <li> Whether this argument exists
+ *   <li> Whether it contains a positive integer, or a list of positive integers
+ *          (represented as a string with spaces, commas and/or semicolons as delimiters,
+ *          e.g. <code>"10, 20; 30"</code>).
+ * </ul>
+ * <p>
+ * For SA-IMM and SA-RG-IMM algorithm, checks on <code>args["n-samples-sa"]</code> instead.
+ * <p>
  * An exception is thrown if the algorithm label is not one of above.
  *
- * @param args The ProgramArgs object as argument collection
+ * @param args The <code>ProgramArgs</code> object as argument collection
  * @param algo The algorithm label
  * @return The check result, whether such sample size is fixed.
  * @throw std::invalid_argument if invalid algorithm label is provided.
@@ -158,12 +175,12 @@ inline bool sampleSizeIsFixed(const ProgramArgs& args, AlgorithmLabel algo) {
 /*!
  * @brief whether the argument collection provides fixed sample size.
  *
- * The algorithm label is obtained via algo = getAlgorithmLabel(args).
- * See getAlgorithmLabel and sampleSizeIsFixed(args, algo) for details.
+ * The algorithm label is obtained via <code>algo = getAlgorithmLabel(args)</code>.
  *
- * @param args The ProgramArgs object as argument collection
+ * @param args The <code>ProgramArgs</code> object as argument collection
  * @return The check result, whether such sample size is fixed.
  * @throw std::invalid_argument if invalid algorithm label is provided by args.
+ * @see <code>sampleSizeIsFixed(args, algo)</code>
  */
 inline bool sampleSizeIsFixed(const ProgramArgs& args) {
     return sampleSizeIsFixed(args, getAlgorithmLabel(args));
@@ -182,65 +199,103 @@ namespace {
 
 /*!
  * @brief Common algorithm arguments that all the algorithms use.
+ *
+ * <code>BasicArgs</code> is the base class of all the arguments collection classes.
  */
 struct BasicArgs {
-    // Approximation ratio = 1 - 1/e
+    /*!
+     * @brief Approximation ratio for regular greedy algorithm = 1 - 1/e
+     */
     static constexpr double delta   = 1.0 - 1.0 /  ns::e;
-    // Approximation ratio of random greedy algorithm = 1/e
+    /*!
+     * @brief Approximation ratio of random greedy algorithm = 1/e
+     */
     static constexpr double deltaRG = 1.0 / ns::e;
-
-    // Number of nodes in the graph
+    /*!
+     * @brief Number of nodes in the graph
+     */
     std::size_t                 n;
-    // Number of boosted nodes to choose
-    // If multiple k's are provided, take the largest k.
+    /*!
+     * @brief Number of boosted nodes to choose.
+     * <p>If multiple k's are provided, take the largest k.
+     */
     std::size_t                 k;
-    // All the k's for simulation
+    /**
+     * @brief All the k's for simulation. Sorted in ascending order.
+     */
     std::vector<std::size_t>    kList;
-    // Weight of objective function. 
-    // The higher lambda, the result depends more on positive gain;
-    // The lower  lambda,                    more on negative gain. 
+    /**
+     * @brief Weight of objective function.
+     * <p>The higher lambda, the result depends more on positive gain; The lower lambda, more on negative gain.
+     */
     double                      lambda;
-    // Node state priority
+    /*!
+     * @brief Node state priority
+     */
     NodePriorityProperty        priority{};
-    // Algorithm label
+    /*!
+     * @brief Algorithm label: which algorithm to use
+     */
     AlgorithmLabel              algo;
-    // Logging frequency during time-consuming algorithms.
+    /*!
+     * @brief Logging frequency <i>f</i> during time-consuming algorithms.
+     * <p>A log message is output for every <i>f</i> x 1% of the progress.
+     */
     double                      logPerPercentage;
-    // Number of threads to use
+    /*!
+     * @brief Number of threads to use
+     */
     std::size_t                 nThreads;
-    // Number of simulations for each boosted node set and each k
-    static constexpr std::uint64_t  testTimesDefault = 10000;
+    /*!
+     * @brief Number of simulations <i>T</i> for each boosted node set and each k.
+     * <p>Simulations repeats <i>T</i> times and the average result is taken for better accuracy.
+     */
     std::uint64_t                   testTimes;
+    /*!
+     * @brief Default value of <code>testTimes</code>
+     */
+    static constexpr std::uint64_t  testTimesDefault = 10000;
 
-    // Derived Args
+    /*!
+     * @brief (Derived arg) log2(n)
+     */
     double                  log2N;
+    /*!
+     * @brief (Derived arg) ln(n)
+     */
     double                  lnN;
+    /*!
+     * @brief (Derived arg) ln(C(n, k)) where C(n, k) is the binomial coefficient
+     */
     double                  lnCnk;
 
     /*!
-     * @brief Constructs a BasicArgs object with given graph size and argument collection.
+     * @brief Constructs a <code>BasicArgs</code> object with given graph size and argument collection.
      * 
      * args should contain:
-     *   - args["k"]                             as unsigned integer, or a list of unsigned integers,
+     * <ul>
+     *   <li> <code>args["k"]</code>             as unsigned integer, or a list of unsigned integers,
      *                                              number of boosted nodes to choose.
-     *   - args["lambda"]                        as floating point, 
+     *   <li> <code>args["lambda"]</code>        as floating point,
      *                                              weight of objective function
-     *   - args["priority"]                      as case-insensitive string,
+     *   <li> <code>args["priority"]</code>      as case-insensitive string,
      *                                              string representation of node state priority
-     *   - (Optional) args["algo"]               as case-insensitive string, 
-     *                                              algorithm name. `auto` by default
-     *   - (Optional) args["log-per-percentage"] as floating point, 
+     *   <li> (Optional) <code>args["algo"]</code> as case-insensitive string,
+     *                                              algorithm name. <code>auto</code> by default
+     *   <li> (Optional) <code>args["log-per-percentage"]</code> as floating point,
      *                                              log frequency. 5.0 by default
-     *   - (Optional) args["n-threads"]          as unsigned integer,
+     *   <li> (Optional) <code>args["n-threads"]</code> as unsigned integer,
      *                                              how many threads to use at most, 1 by default
-     *   - (Optional) args["test-times"]         as unsigned integer,
+     *   <li> (Optional) <code>args["test-times"]</code> as unsigned integer,
      *                                              how many times to simulate for each boosted node set and k
+     * </ul>
      *
-     * For the arguments that support lists, the values should be separated by spaces, commas or semicolons.
-     * e.g. "10, 20; 30"
+     * For the arguments that support lists, the list is given as a string
+     * whose values should be separated by spaces, commas or semicolons.
+     * e.g. <code>"10, 20; 30"</code>
      * 
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     BasicArgs(std::size_t n, const ProgramArgs& args): n(n) {
@@ -317,9 +372,11 @@ struct BasicArgs {
     /*!
      * @brief Sets global experiment environment.
      *
-     * Changes the following:
-     *   - Global weight parameter lambda
-     *   - Global node state priority
+     * Changes the following global values:
+     * <ul>
+     *   <li> Global weight parameter <i>lambda</i>
+     *   <li> Global node state priority
+     * </ul>
      */
     virtual void setEnv() const {
         setNodeStateGain(lambda);
@@ -327,7 +384,7 @@ struct BasicArgs {
     }
 
     /*!
-     * @brief Dumps arguments as a string.
+     * @brief Dumps arguments as a multi-line string.
      * @return A multi-line string, without trailing new-line character.
      */
     [[nodiscard]] virtual std::string dump() const {
@@ -356,30 +413,34 @@ struct BasicArgs {
  *  that these lower bound fractions require.
  */
 struct BasicArgs_SA_IMM_LB: BasicArgs {
-    // Constraints the threshold of minimal distance between the center node of a sample and any of seed nodes.
-    // Only the nodes with distance in the range [1, sampleDistLimit] are chosen as center nodes.
-    // This parameter saves time consumption with slight solution quality loss if the graph is very large.
-    // +inf by default, with which all the nodes will be chosen.
+    /*!
+     * @brief Constraints the threshold of minimal distance between the center node of a sample and any seed node.
+     *
+     * Only the nodes with distance in the range [1, sampleDistLimit] are chosen as center nodes.
+     * This parameter saves time consumption with slight solution quality loss if the graph is very large.
+     * <p>+inf by default. (i.e. all the nodes will be chosen).
+     */
     std::size_t sampleDistLimit;
-    // Minimum average gain that a boosted node s should contribute to certain center node v
-    //  in SA-IMM or SA-RG-IMM algorithm.
-    // Only the records that satisfies gain(s; v) >= gainThreshold will be stored. Others filtered out.
-    // See SA_IMM_LB for details.
+    /*!
+     * @brief Minimum average gain that a boosted node s should contribute to certain center node v
+     * in SA-IMM or SA-RG-IMM algorithm..
+     *
+     * Only the records that satisfies gain(s; v) >= gainThreshold will be stored. Others filtered out.
+     */
     double      gainThreshold;
 
     /*!
      * @brief Constructs with given graph size and argument collection.
      *
-     * Besides requirements in BasicArgs and K, args should also contain:
-     *   - args["sample-dist-limit-sa"]         as an unsigned integer,
-     *                                              the maximum minimal distance
-     *                                              between a sample's center node
-     *                                              and any of seed nodes
-     *   - (Optional) args["gain-threshold-sa"] as a floating point,
-     *                                              gain threshold, 0.0 by default
+     * Besides requirements in <code>BasicArgs</code>, args should also contain:
+     * <ul>
+     *   <li> <code>args["sample-dist-limit-sa"]</code> as an unsigned integer,
+     *        the maximum minimal distance between a sample's center node and any seed node
+     *   <li> (Optional) <code>args["gain-threshold-sa"]</args> as a floating point, gain threshold, 0 by default
+     * </ul>
      *
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     BasicArgs_SA_IMM_LB(std::size_t n, const ProgramArgs& args): BasicArgs(n, args) {
@@ -398,10 +459,6 @@ struct BasicArgs_SA_IMM_LB: BasicArgs {
         }
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = BasicArgs::dump() + dumpDelimiter;
         res += format("sampleDistLimit = {}\n", sampleDistLimit);
@@ -414,19 +471,17 @@ struct BasicArgs_SA_IMM_LB: BasicArgs {
  * @brief Abstract base class for all argument components on sample size.
  */
 struct BasicArgsSampleSize {
-    /*!
-     * @brief Virtual destruction for derived types.
-     */
     virtual ~BasicArgsSampleSize() = default;
 
     /*!
-     * @brief Gets the information whether the number of PRR-sketch samples is fixed at constant value(s).
-     * @return True if fixed, false otherwise.
+     * @brief Whether the number of PRR-sketch samples is fixed at constant value(s).
+     *
+     * @return Always true for derived types with static sample size, always false otherwise.
      */
     [[nodiscard]] virtual bool isFixed() const = 0;
 
     /*!
-     * @brief Interface to dump arguments as a string.
+     * @brief Dumps arguments as a multi-line string.
      * @return A multi-line string, without trailing new-line character.
      */
     [[nodiscard]] virtual std::string dump() const = 0;
@@ -435,41 +490,56 @@ struct BasicArgsSampleSize {
 /*!
  * @brief Common algorithm arguments for dynamic cases.
  *
- * The number of samples is determined by epsilon, ell and sampleLimit.
+ * The number of samples is determined by <i>epsilon, ell</i> and <i>sampleLimit</i>.
  */
 struct ArgsSampleSizeDynamic: BasicArgsSampleSize {
-    // Epsilon.
+    /*!
+     * @brief Algorithm precision parameter <i>epsilon</i>
+     */
     double          epsilon;
-    // Ell. With 1 - (1/n) ^ ell probability,
-    // PR-IMM    algorithm gets a result with approximation ratio (1 - 1/e - epsilon),
-    // SA-IMM    algorithm gets a result with approximation ratio (1 - 1/e - epsilon),
-    // SA-RG-IMM                                                      (1/e - epsilon).
+    /*!
+     * @brief Algorithm precision parameter <i>ell</i>
+     *
+     * With <i>1 - (1/n) ^ ell</i> probability:
+     * <ul>
+     *   <li> PR-IMM and SA-imm algorithm gets a result with approximation ratio <i>(1 - 1/e - epsilon)</i>
+     *   <li> SA-RG-IMM with approximation ratio <i>(1/e - epsilon)</i>.
+     * </ul>
+     */
     double          ell;
-    // Maximum number of samples.
-    // For PR-IMM algorithm:
-    //   sampleLimit = The maximum total number of samples.
-    //     The algorithm is forced to stop if the number of PRR-sketches reaches this limit.
-    // For SA-IMM and SA-RG-IMM algorithm:
-    //   sampleLimit = The maximum number of samples for each center node.
-    //     The total sample size = min(sampleLimit, theta(epsilon, ell)) * N'
-    //     where N' = number of center nodes. N' < |V| if sampleDistLimit < +inf
+    /*!
+     * @brief Maximum number of samples.
+     *
+     * <ul>
+     *   <li> For PR-IMM algorithm: sampleLimit = The maximum total number of samples.
+     *          The algorithm is forced to stop if the number of PRR-sketches reaches this limit.
+     *   <li> For SA-IMM and SA-RG-IMM algorithm:
+     *          sampleLimit = The maximum number of samples <b>for each center node</b>.
+     *          The total sample size = min(sampleLimit, theta(epsilon, ell)) * <i>N'</i>
+     *          where <i>N'</i> = number of center nodes.
+     * </ul>
+     */
     std::uint64_t   sampleLimit;
 
     /*!
      * @brief Constructs with given algorithm label and argument collection.
      *
      * For PR-IMM algorithm, args should contain:
-     *   - args["epsilon"]                  as floating point
-     *   - (Optional) args["ell"]           as floating point, 1.0 by default
-     *   - (Optional) args["sample-limit"]  as floating point, +inf by default
+     * <ul>
+     *   <li> <code>args["epsilon"]</code> as floating point
+     *   <li> (Optional) <code>args["ell"]</code> as floating point, 1.0 by default
+     *   <li> (Optional) <code>args["sample-limit"]</code> as floating point, +inf by default
+     * </ul>
      *
      * For SA-IMM or SA-RG-IMM algorithm, args should contain:
-     *   - args["epsilon-sa"]                  as floating point
-     *   - (Optional) args["ell"]              as floating point, 1.0 by default
-     *   - (Optional) args["sample-limit-sa"]  as floating point, +inf by default
+     * <ul>
+     *   <li> <code>args["epsilon-sa"]</code> as floating point
+     *   <li> (Optional) <code>args["ell"]</code> as floating point, 1.0 by default
+     *   <li> (Optional) <code>args["sample-limit-sa"]</code> as floating point, +inf by default
+     * </ul>
      *
      * @param algo Label of the target algorithm
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The </code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     explicit ArgsSampleSizeDynamic(AlgorithmLabel algo, const ProgramArgs& args) {
@@ -488,22 +558,10 @@ struct ArgsSampleSizeDynamic: BasicArgsSampleSize {
                 utils::halfMax<std::uint64_t>);
     }
 
-    /*!
-     * @brief Gets the information whether the number of PRR-sketch samples is fixed at constant value(s).
-     *
-     * Always false for dynamic cases, whose sample size is determined by epsilon, ell and sample-limit
-     *  and early-stop process in the algorithm.
-     *
-     * @return false
-     */
     [[nodiscard]] bool isFixed() const override {
         return false;
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = format("    epsilon = {}\n", epsilon);
         res     += format("        ell = {}\n", ell);
@@ -515,31 +573,43 @@ struct ArgsSampleSizeDynamic: BasicArgsSampleSize {
 /*!
  * @brief Common algorithm arguments for static cases.
  *
- * The number of PRR-sketches in total (PR-IMM),
- *  or for each center node (lower bound part of SA-[RG-]IMM),
+ * The number of PRR-sketches in total (PR-IMM)
+ *  or for each center node (lower bound part of SA-[RG-]IMM)
  *  are provided as a list of integers.
- * Different results are gotten for each sample size.
- * After generating R1 samples, the result with R1 + R2 samples is acquired by simply appending R2 samples.
+ * <p>
+ * Different boosting node selection results are acquired for each sample size.
+ * After generating <i>R1</i> samples, the result with <i>R1 + R2</i> samples
+ * is acquired by simply appending <i>R2</i> samples.
+ * <p>
+ * It's time-saving for experiment series to provide sample sizes as a list
+ * so that time complexity can be reduced from <i>O(R1 + R2)</i> to <i>O(R2)</i>.
  */
 struct ArgsSampleSizeStatic: BasicArgsSampleSize {
-    // For PR-IMM:
-    //   List of all the sample sizes (i.e. number of PRR-sketches)
-    // For SA-IMM and SA-RG-IMM (lower bound part):
-    //   List of all the sample sizes for each center node.
-    // Sorted in ascending order
+    /*!
+     * @brief Fixed sample size(s).
+     *
+     * <ul>
+     *   <li> For PR-IMM: List of all the sample sizes (i.e. number of PRR-sketches)
+     *   <li> For SA-IMM and SA-RG-IMM (lower bound part): List of all the sample sizes for each center node.
+     * </ul>
+     *
+     * The values are sorted in ascending order.
+     */
     std::vector<std::uint64_t> nSamplesList;
 
     /*!
      * @brief Constructs with given algorithm label and argument collection.
      *
      * For PR-IMM algorithm, args should contain:
-     *   - args["n-samples"] as a case-sensitive string,
+     * <ul>
+     *   <li> <code>args["n-samples"]</code> as a case-sensitive string,
      *      a list of all the sample sizes, separated with either space, comma or semicolon.
+     * </ul>
      *
-     * For SA-IMM and SA-RG-IMM algorithm (lower bound part), use args["n-samples-sa"] instead.
+     * For SA-IMM and SA-RG-IMM algorithm (lower bound part), use <code>args["n-samples-sa"]</code> instead.
      *
      * @param algo Label of the target algorithm
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     ArgsSampleSizeStatic(AlgorithmLabel algo, const ProgramArgs& args) {
@@ -569,21 +639,10 @@ struct ArgsSampleSizeStatic: BasicArgsSampleSize {
         rs::sort(nSamplesList);
     }
 
-    /*!
-     * @brief Gets the information whether the number of PRR-sketch samples is fixed at constant value(s).
-     *
-     * Always true for static cases, whose sample size is given explicitly.
-     *
-     * @return true
-     */
     [[nodiscard]] bool isFixed() const override {
         return true;
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         return "nSamples = " + listJoinFn(nSamplesList);
     }
@@ -593,18 +652,26 @@ struct ArgsSampleSizeStatic: BasicArgsSampleSize {
  * @brief Derived component of PR-IMM algorithm arguments with dynamic sample size.
  */
 struct ArgsSampleSizeDynamic_PR_IMM: ArgsSampleSizeDynamic {
-    // Derived args (see PR_IMM for details)
+    /*!
+     * @brief (Derived args)
+     */
     double theta0;
+    /*!
+     * @brief (Derived args)
+     */
     double alpha;
+    /*!
+     * @brief (Derived args)
+     */
     double beta;
 
     /*!
      * @brief Constructs with given base component and argument collection.
      *
-     * args should meet all the requirements of ArgsSampleSizeDynamic.
+     * args should meet all the requirements of <code>ArgsSampleSizeDynamic</code>.
      *
      * @param parent Pointer to the base component
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     ArgsSampleSizeDynamic_PR_IMM(const BasicArgs* parent, const ProgramArgs& args):
@@ -618,10 +685,6 @@ struct ArgsSampleSizeDynamic_PR_IMM: ArgsSampleSizeDynamic {
         beta = std::sqrt(delta * (ell * parent->lnN + parent->lnCnk + ns::ln2));
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = ArgsSampleSizeDynamic::dump() + dumpDelimiter;
         res     += format("=> theta0 = {}\n", theta0);
@@ -635,26 +698,33 @@ struct ArgsSampleSizeDynamic_PR_IMM: ArgsSampleSizeDynamic {
  * @brief Derived component of SA-IMM-LB and SA-RG-IMM-LB algorithm arguments with dynamic sample size.
  *
  * Suffix -LB refers to the lower bound part.
- *
+ * <p>
  * Calculation of the derived arguments uses different delta:
- *   - 1 - 1/e for SA-IMM-LB
- *   -     1/e for SA-RG-IMM-LB
+ * <ul>
+ *   <li> <i>1 - 1/e</i> for SA-IMM-LB
+ *   <li> <i>1/e</i> for SA-RG-IMM-LB
+ * </ul>
  */
 struct ArgsSampleSizeDynamic_SA_IMM_LB: ArgsSampleSizeDynamic {
-    // Derived args
+    /*!
+     * @brief (Derived arg)
+     */
     double          kappa;
+    /*!
+     * @brief (Derived arg)
+     */
     double          theta;
 
     /*!
      * @brief Constructs with given base component and argument collection.
      *
      * Calculation of derived arguments used different delta depending on which algorithm is used
-     * (1 - 1/e for SA-IMM and 1/e for SA-RG-IMM).
-     *
-     * args should meet all the requirements of ArgsSampleSizeDynamic.
+     * (<i>1 - 1/e</i> for SA-IMM and <i>1/e</i> for SA-RG-IMM).
+     * <p>
+     * args should meet all the requirements of <code>ArgsSampleSizeDynamic</code>.
      *
      * @param parent Pointer to the base component
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     ArgsSampleSizeDynamic_SA_IMM_LB(const BasicArgs* parent, const ProgramArgs& args):
@@ -674,10 +744,6 @@ struct ArgsSampleSizeDynamic_SA_IMM_LB: ArgsSampleSizeDynamic {
                 ((2.0 + deltaUsed) * std::pow(kappa, 3.0));
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = ArgsSampleSizeDynamic::dump() + dumpDelimiter;
         res     += format("=> kappa = {}\n", kappa);
@@ -696,10 +762,10 @@ struct StaticArgs: Base, ArgsSampleSizeStatic {
     /*!
      * @brief Constructs with given graph size and argument collection.
      *
-     * args should meet all the requirements of BasicArgsMultipleK and ArgsSampleSizeStatic.
+     * args should meet all the requirements of <code>Base</code> and <code>ArgsSampleSizeStatic</code>.
      *
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     StaticArgs(std::size_t n, const ProgramArgs& args):
@@ -707,16 +773,12 @@ struct StaticArgs: Base, ArgsSampleSizeStatic {
 
     /*!
      * @brief Constructs by copying the two components in the base classes
-     * @param base The Base component to be copied
-     * @param sampleSizeStatic The ArgsSampleSizeStatic component to be copied
+     * @param base The <code>Base</code> component to be copied
+     * @param sampleSizeStatic The <code>ArgsSampleSizeStatic</code> component to be copied
      */
     StaticArgs(const Base& base, const ArgsSampleSizeStatic& sampleSizeStatic):
     Base(base), ArgsSampleSizeStatic(sampleSizeStatic) {}
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         return Base::dump() + dumpDelimiter + ArgsSampleSizeStatic::dump();
     }
@@ -740,10 +802,10 @@ struct DynamicArgs: Base, SampleSizeComponent {
     /*!
      * @brief Constructs with given graph size and argument collection.
      *
-     * args should meet all the requirements of BasicArgsSingleK and SampleSizeComponent.
+     * args should meet all the requirements of <code>Base</code> and <code>SampleSizeComponent</code>.
      *
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     DynamicArgs(std::size_t n, const ProgramArgs& args):
@@ -751,16 +813,12 @@ struct DynamicArgs: Base, SampleSizeComponent {
 
     /*!
      * @brief Constructs by copying the two components in the base classes
-     * @param base The Base component to be copied
-     * @param sampleSize The SampleSizeComponent object to be copied
+     * @param base The <code>Base</code> component to be copied
+     * @param sampleSize The <code>SampleSizeComponent</code> object to be copied
      */
     DynamicArgs(const Base& base, const SampleSizeComponent& sampleSize):
     Base(base), SampleSizeComponent(sampleSize) {}
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         return Base::dump() + dumpDelimiter + SampleSizeComponent::dump();
     }
@@ -786,20 +844,25 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
     using Base          = BasicArgs_SA_IMM_LB;
     using SampleSizePtr = std::shared_ptr<BasicArgsSampleSize>;
 
-    // Args for upper bound, performing PR-IMM algorithm with a monotonic & submodular node state priority
+    /*!
+     * @brief Additional args for upper bound,
+     * performing PR-IMM algorithm with a monotonic & submodular node state priority.
+     */
     SampleSizePtr UB;
-    // Args for lower bound, performing SA-IMM-LB algorithm segment
+    /*!
+     * @brief Additional args for lower bound, performing SA-IMM-LB algorithm segment
+     */
     SampleSizePtr LB;
 
     /*!
      * @brief Constructs with given graph size and argument collection.
      *
-     * args should meet all the requirements of BasicArgs_SA_IMM_LB<BasicArgsSingleK>
-     * and ArgsSampleSize[Static | Dynamic_PR_IMM | Dynamic_SA_IMM_LB] depending on whether the
+     * args should meet all the requirements of <code>BasicArgs_SA_IMM_LB\<BasicArgsSingleK\></code>
+     * and <code>ArgsSampleSize[Static | Dynamic_PR_IMM | Dynamic_SA_IMM_LB]</code> depending on whether the
      * corresponding sample size shall be fixed.
      *
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     Args_SA_IMM(std::size_t n, const ProgramArgs& args): Base(n, args) {
@@ -819,13 +882,14 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
     /*!
      * @brief Gets a full copy of the arguments for the upper bound part.
      *
-     * The result is either DynamicArgs_PR_IMM for dynamic sample size, or StaticArgs_PR_IMM for the static.
-     *
+     * The result is either <code>DynamicArgs_PR_IMM</code> for dynamic sample size,
+     * or <code>StaticArgs_PR_IMM</code> for the static.
+     * <p>
      * The node state priority is replaced to the "upper bound priority" for this PR-IMM fraction.
-     * See NodePriorityProperty::upperBound() for details.
      *
      * @return A shared pointer to the argument object copied.
      * @throw std::bad_cast for unexpected cases.
+     * @see <code>NodePriorityProperty::upperBound()</code>
      */
     [[nodiscard]] auto argsUB() const {
         auto res = std::shared_ptr<BasicArgs>{};
@@ -846,9 +910,10 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
     /*!
      * @brief Gets a full copy of the arguments for the lower bound part.
      *
-     * The result is either DynamicArgs_SA_IMM_LB for dynamic sample size, or StaticArgs_SA_IMM_LB for the static.
+     * The result is either <code>DynamicArgs_SA_IMM_LB</code> for dynamic sample size,
+     * or <code>StaticArgs_SA_IMM_LB</code> for the static.
      *
-     * todo WORKAROUND: nThreads is set to 1 to prevent multithreading bug
+     * @todo WORKAROUND: nThreads is set to 1 to prevent multithreading bug
      *
      * @return A shared pointer to the argument object copied.
      * @throw std::bad_cast for unexpected cases.
@@ -869,10 +934,6 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
         return res;
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = Base::dump() + dumpDelimiter;
         res += format("Args for upper bound ({}):\n", UB->isFixed() ? "static" : "dynamic")
@@ -887,17 +948,22 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
  * @brief Algorithm arguments for greedy selection.
  */
 struct GreedyArgs: BasicArgs {
-    // How many times to simulate for each boosted node during greedy selection
-    static constexpr std::uint64_t  greedyTestTimesDefault = 1000;
+    /*!
+     * @brief How many times to simulate for each boosted node during greedy selection
+     */
     std::uint64_t                   greedyTestTimes;
+    /*!
+     * @brief Default value of <code>greedyTestTimes</code>
+     */
+    static constexpr std::uint64_t  greedyTestTimesDefault = 1000;
 
     /*!
      * @brief Constructs with given graph size and argument collection.
      *
-     * args should meet all the requirements of BasicArgsMultipleK.
+     * args should meet all the requirements of <code>BasicArgs</code>.
      *
      * @param n Number of nodes in the whole graph
-     * @param args The ProgramArgs object as argument collection.
+     * @param args The <code>ProgramArgs</code> object as argument collection.
      * @throw std::out_of_range if value gets out of range
      */
     GreedyArgs(std::size_t n, const ProgramArgs& args): BasicArgs(n, args) {
@@ -908,10 +974,6 @@ struct GreedyArgs: BasicArgs {
         }
     }
 
-    /*!
-     * @brief Dumps arguments as a string.
-     * @return A multi-line string, without trailing new-line character.
-     */
     [[nodiscard]] std::string dump() const override {
         auto res = BasicArgs::dump() + dumpDelimiter;
         res += format("greedyTestTimes = {} (default = {})", greedyTestTimes, greedyTestTimesDefault);
@@ -922,10 +984,10 @@ struct GreedyArgs: BasicArgs {
 using AlgorithmArgsPtr = std::unique_ptr<BasicArgs>;
 
 /*!
- * @brief Generates a ProgramArgs object with the program arguments (argc, argv).
+ * @brief Generates a <code>ProgramArgs</code> object with the program arguments (argc, argv).
  * @param argc
  * @param argv
- * @return The ProgramArgs object that wraps all the program arguments.
+ * @return The <code>ProgramArgs</code> object that wraps all the program arguments.
  */
 ProgramArgs prepareProgramArgs(int argc, char** argv);
 
@@ -933,19 +995,27 @@ ProgramArgs prepareProgramArgs(int argc, char** argv);
  * @brief Generates a algorithm argument object with given graph size |V| and program args.
  *
  * A polymorphic object is obtained according to which algorithm to use:
- *   - For PR-IMM algorithm, DynamicArgs_PR_IMM or StaticArgs_PR_IMM is obtained depending on which mode is used.
- *     The latter is used if the program argument '-n-samples' is provided.
- *     Otherwise, '-epsilon' should be provided.
- *   - For SA-(RG-)IMM algorithm, its arguments contain two parts:
- *     - Upper bound: [Dynamic|Static]Args_PR_IMM (depending on whether '-n-samples' is provided)
- *     - Lower bound: [Dynamic|Static]Args_SA_IMM_LB. (depending on whether '-n-samples-sa' is provided).
- *       For the dynamic case, '-epsilon-sa' shall be provided.
- *   - For Greedy algorithm: GreedyArgs
- *   - For others: BasicArgs
+ * <ul>
+ *   <li> For PR-IMM algorithm, <code>DynamicArgs_PR_IMM</code> or <code>StaticArgs_PR_IMM</code>
+ *          is obtained depending on which mode is used.
+ *          The latter is used if the program argument <code>'-n-samples'</code> is provided.
+ *          Otherwise, <code>'-epsilon'</code> should be provided.
+ *   <li> For SA-(RG-)IMM algorithm, its arguments contain two parts:
+ *   <ul>
+ *     <li> Upper bound: <code>[Dynamic|Static]Args_PR_IMM</code>
+ *          (depending on whether <code>'-n-samples'</code> is provided)
+ *     <li> Lower bound: <code>[Dynamic|Static]Args_SA_IMM_LB</code>
+ *          (depending on whether <code>'-n-samples-sa'</code> is provided).
+ *   </ul>
+ *          For the dynamic case, <code>'-epsilon-sa'</code> shall be provided.
+ *   <li> For Greedy algorithm: <code>GreedyArgs</code>
+ *   <li> For others: <code>BasicArgs</code>
+ * </ul>
  *
  * @param n Graph size |V|
- * @param args The program arguments, see prepareProgramArgs(argc, argv) for details.
+ * @param args The program arguments
  * @return A smart pointer to the allocated polymorphic object with all the algorithm arguments.
+ * @see <code>prepareProgramArgs(argc, argv)</code>
  */
 AlgorithmArgsPtr getAlgorithmArgs(std::size_t n, const ProgramArgs& args);
 

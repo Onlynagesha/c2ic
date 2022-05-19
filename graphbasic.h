@@ -8,7 +8,7 @@
 #include "immbasic.h"
 
 /*!
- * @brief Node type of the graph, which simply contains the index as an unsigned integer, in the range [0, |V|-1]
+ * @brief Node type of the graph, which simply contains the index as an unsigned integer in the range [0, |V|-1]
  */
 using IMMNode = graph::BasicNode<std::size_t>;
 
@@ -16,13 +16,25 @@ using IMMNode = graph::BasicNode<std::size_t>;
  * @brief Link type of the graph.
  *
  * Besides (from, to) as the indices of nodes, the link type also contains:
- *   - index: an unsigned integer in range [0, |E|-1], a unique identifier for each link
- *   - p, pBoost: probability during sampling
+ * <ul>
+ *   <li> index: an unsigned integer in range [0, |E|-1], a unique identifier for each link
+ *   <li> p, pBoost: probability during sampling
+ * </ul>
  */
 struct IMMLink: graph::BasicLink<std::size_t> {
-    // index = 0, 1, 2 ... |E|-1
+    /*!
+     * @brief Index of the link, in range 0, 1, 2 ... |E|-1
+     */
     std::size_t index;
+    /*!
+     * @brief Probability of the link to be sampled as Active
+     */
     double      p;
+    /*!
+     * @brief Probability of the link to be sampled as Active or Boosted
+     *
+     * pBoost >= p and (pBoost - p) is the probability to be sampled exactly as Boosted.
+     */
     double      pBoost;
 
     IMMLink() = default;
@@ -44,18 +56,33 @@ using IMMGraph = graph::Graph<
  * @brief Node type of the PRR-sketch subgraph.
  */
 struct PRRNode : graph::BasicNode<std::size_t> { // NOLINT(cppcoreguidelines-pro-type-member-init)
-    // Which state this node will become if no boosted node exists
-    // Ca, Cr, or None, according to which kind of message comes first
+    /*!
+     * @brief Which state this node will become if no boosted node exists.
+     *
+     * Ca, Cr, or None, according to which kind of message comes first.
+     */
     NodeState   state = NodeState{};
-    // Which state this node will change the center node of its PRR-sketch to
-    //  if this node is set as a boosted node
+    /*!
+     * @brief Which state this node will change the center node of its PRR-sketch to
+     * if this node is set as a boosted node.
+     */
     NodeState   centerStateTo = NodeState{};
-    // Minimum distance from any seed node
+    /*!
+     * @brief Minimum distance from any seed node
+     */
     int	        dist = 0;
-    // Reversed minimum distance from the center node
+    /*!
+     * @brief Reversed minimum distance from the center node
+     */
     int         distR = 0;
-    // For all Ca nodes, maxDistP = maximal accepted distance from the nearest seed node
-    //  with which this node changes the center node to Ca+ after being boosted.
+    /*!
+     * @brief Maximal accepted distance from the nearest seed node.
+     *
+     * For Ca nodes, this node is able to change the center node to Ca+ after being boosted
+     * only if its distance to any seed node is no more than maxDistP.
+     * <p>
+     * Used in PR-IMM algorithm only.
+     */
     int         maxDistP = 0;
 
     PRRNode() = default;
@@ -87,14 +114,17 @@ using PRRGraphBase = graph::Graph<
  * @brief Graph type of PRR-sketches.
  */
 struct PRRGraph: PRRGraphBase {
-    // Index of the center node
+    /*!
+     * @brief Index of the center node
+     */
     std::size_t center{};
-    // State of the center node, equivalent to .centerNode().state
+    /*!
+     * @brief State of the center node, equivalent to <code>centerNode().state</code>
+     */
     NodeState   centerState{};
 
-    // Delayed reservation
     explicit PRRGraph(graph::tags::ReservesLater later): PRRGraphBase(later) {}
-    // Reserves WITH the arguments
+
     explicit PRRGraph(const std::map<std::string, std::size_t>& reserveArgs): PRRGraphBase(reserveArgs) {}
 
     PRRNode& centerNode() {
