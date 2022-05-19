@@ -155,7 +155,19 @@ private:
 
         for (std::size_t i = 0; i < k; i++) {
             // v = The node chosen in this turn, with the highest total gain
-            std::size_t v = rs::max_element(totalGainCopy) - totalGainCopy.begin();
+            // std::size_t v = rs::max_element(totalGainCopy) - totalGainCopy.begin();
+            std::size_t v = n;
+            double maxTotalGain = halfMin<double>;
+            for (std::size_t j = 0; j < n; j++) {
+                if (totalGainCopy[j] < -1e-6) {
+                    continue;
+                }
+                double t = std::max(totalGainCopy[j] - 1e-6, 0.0);
+                if (t > maxTotalGain) {
+                    maxTotalGain = t;
+                    v = j;
+                }
+            }
             // Output is only enabled when iter != nullptr
             if constexpr (!std::is_same_v<OutIter, std::nullptr_t>) {
                 *iter++ = v;

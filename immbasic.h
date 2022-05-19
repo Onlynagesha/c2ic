@@ -108,7 +108,6 @@ inline NodeStatePriorityArray nodeStatePriority;
 *   in GCC 11.2 and/or other compilers
 *  Use explicit operator <=> instead. e.g. (A <=> B) == std::strong_ordering::greater
 */
-[[deprecated("Bug-prone with GCC")]]
 inline std::strong_ordering operator <=> (NodeState A, NodeState B) {
     return nodeStatePriority[static_cast<int>(A)] <=> nodeStatePriority[static_cast<int>(B)];
 }
