@@ -60,7 +60,7 @@ int mainWorker(int argc, char** argv) {
 
 int main(int argc, char** argv) try {
     // To standard output
-    logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
+    // logger::Loggers::add(std::make_shared<logger::Logger>("output", std::cout, logger::LogLevel::Debug));
     return mainWorker(argc, argv);
 } catch (std::exception& e) {
     LOG_CRITICAL("Exception caught: "s + e.what());

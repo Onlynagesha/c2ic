@@ -1,6 +1,8 @@
 #ifndef DAWNSEEKER_LOGGER_H
 #define DAWNSEEKER_LOGGER_H
 
+#if !defined(LOG_LEVEL) || (LOG_LEVEL >= 0 && LOG_LEVEL <= 3)
+
 #include "global.h"
 #include <chrono> 
 #include <compare>
@@ -302,6 +304,16 @@ namespace logger {
 #else
 #define LOG_ERROR(...) (void)0
 #define LOG_CRITICAL(...) (void)0
+#endif
+
+#else
+
+#define LOG_DEBUG(...)
+#define LOG_INFO(...)
+#define LOG_WARNING(...)
+#define LOG_ERROR(...)
+#define LOG_CRITICAL(...)
+
 #endif
 
 #endif //DAWNSEEKER_LOGGER_H

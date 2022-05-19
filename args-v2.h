@@ -388,19 +388,20 @@ struct BasicArgs {
      * @return A multi-line string, without trailing new-line character.
      */
     [[nodiscard]] virtual std::string dump() const {
-        auto res = format("               n = {}\n", n);
-        res     += format("=>         log2N = {}\n", log2N);
-        res     += format("=>           lnN = {}\n", lnN);
-        res     += format("           kList = {}\n", listJoinFn(kList));
-        res     += format("               k = {}\n", k);
-        res     += format("=>         lnCnk = {}\n", lnCnk);
-        res     += format("          lambda = {}\n", lambda);
-        res     += format("            algo = {}\n", algo);
-        res     += format("logPerPercentage = {}\n", logPerPercentage);
-        res     += format("        nThreads = {}\n", nThreads);
-        res     += format("       testTimes = {} (default = {})\n", testTimes, testTimesDefault);
-        
-        res     += format("Node state priority: \n{}", priority.dump());
+        auto res = "               n = " + toString(n) + '\n';
+        res     += "=>         log2N = " + toString(log2N, 'f', 6) + '\n';
+        res     += "=>           lnN = " + toString(lnN, 'f', 6) + '\n';
+        res     += "           kList = " + listJoinFn(kList) + '\n';
+        res     += "               k = " + toString(k) + '\n';
+        res     += "=>         lnCnk = " + toString(lnCnk, 'f', 6) + '\n';
+        res     += "          lambda = " + toString(lambda) + '\n';
+        res     += "            algo = " + toString(algo) + '\n';
+        res     += "logPerPercentage = " + toString(logPerPercentage) + '\n';
+        res     += "        nThreads = " + toString(nThreads) + '\n';
+        res     += "       testTimes = " + toString(testTimes)
+                                         + " (default = " + toString(testTimesDefault) + ")\n";
+        res     += "Node state priority:\n" + priority.dump();
+
         return res;
     }
 };
@@ -461,8 +462,8 @@ struct BasicArgs_SA_IMM_LB: BasicArgs {
 
     [[nodiscard]] std::string dump() const override {
         auto res = BasicArgs::dump() + dumpDelimiter;
-        res += format("sampleDistLimit = {}\n", sampleDistLimit);
-        res += format("  gainThreshold = {}",   gainThreshold);
+        res += "sampleDistLimit = " + toString(sampleDistLimit) + "\n";
+        res += "  gainThreshold = " + toString(gainThreshold);
         return res;
     }
 };
@@ -563,9 +564,9 @@ struct ArgsSampleSizeDynamic: BasicArgsSampleSize {
     }
 
     [[nodiscard]] std::string dump() const override {
-        auto res = format("    epsilon = {}\n", epsilon);
-        res     += format("        ell = {}\n", ell);
-        res     += format("sampleLimit = {}",   sampleLimit);
+        auto res = "    epsilon = " + toString(epsilon) + "\n";
+        res     += "        ell = " + toString(ell) + '\n';
+        res     += "sampleLimit = " + toString(sampleLimit);
         return res;
     }
 };
@@ -687,9 +688,9 @@ struct ArgsSampleSizeDynamic_PR_IMM: ArgsSampleSizeDynamic {
 
     [[nodiscard]] std::string dump() const override {
         auto res = ArgsSampleSizeDynamic::dump() + dumpDelimiter;
-        res     += format("=> theta0 = {}\n", theta0);
-        res     += format("=>  alpha = {}\n", alpha);
-        res     += format("=>   beta = {}", beta);
+        res     += "=> theta0 = " + toString(theta0, 'f', 6) + '\n';
+        res     += "=>  alpha = " + toString(alpha, 'f', 6) + '\n';
+        res     += "=>   beta = " + toString(beta, 'f', 6);
         return res;
     }
 };
@@ -746,8 +747,8 @@ struct ArgsSampleSizeDynamic_SA_IMM_LB: ArgsSampleSizeDynamic {
 
     [[nodiscard]] std::string dump() const override {
         auto res = ArgsSampleSizeDynamic::dump() + dumpDelimiter;
-        res     += format("=> kappa = {}\n", kappa);
-        res     += format("=> theta = {}", theta);
+        res     += "=> kappa = " + toString(kappa, 'f', 6) + '\n';
+        res     += "=> theta = " + toString(theta, 'f', 6);
         return res;
     }
 };
@@ -936,9 +937,9 @@ struct Args_SA_IMM: BasicArgs_SA_IMM_LB {
 
     [[nodiscard]] std::string dump() const override {
         auto res = Base::dump() + dumpDelimiter;
-        res += format("Args for upper bound ({}):\n", UB->isFixed() ? "static" : "dynamic")
+        res += "Args for upper bound ("s + (UB->isFixed() ? "static):\n" : "dynamic):\n")
                 + UB->dump() + dumpDelimiter;
-        res += format("Args for lower bound ({}):\n", LB->isFixed() ? "static" : "dynamic")
+        res += "Args for lower bound ("s + (UB->isFixed() ? "static):\n" : "dynamic):\n")
                 + LB->dump();
         return res;
     }
@@ -976,7 +977,8 @@ struct GreedyArgs: BasicArgs {
 
     [[nodiscard]] std::string dump() const override {
         auto res = BasicArgs::dump() + dumpDelimiter;
-        res += format("greedyTestTimes = {} (default = {})", greedyTestTimes, greedyTestTimesDefault);
+        res += "greedyTestTimes = " + toString(greedyTestTimes)
+                + " (default = " + toString(greedyTestTimesDefault) + ")";
         return res;
     }
 };
