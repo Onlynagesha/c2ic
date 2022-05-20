@@ -11,6 +11,30 @@
 #include "Logger.h"
 #include "PRRGraph.h"
 
+namespace {
+    auto fineTunedSelect(const std::vector<double>& values) {
+        constexpr double eps = 1e-6;
+
+        auto pos = std::size_t{values.size()};
+        auto maxValue = halfMin<double>;
+
+        for (std::size_t i = 0; i < values.size(); i++) {
+            // All negative values are filtered out
+            if (values[i] < -eps) {
+                continue;
+            }
+            // Tiny values in [0, eps] is treated as 0
+            auto curValue = std::max(0.0, values[i] - eps);
+            if (curValue > maxValue) {
+                maxValue = curValue;
+                pos = i;
+            }
+        }
+
+        return pos;
+    }
+}
+
 /*!
  * @brief Collection of all PRR-sketches in PR-IMM algorithm, for monotonic & submodular cases only.
  *
@@ -156,18 +180,7 @@ private:
         for (std::size_t i = 0; i < k; i++) {
             // v = The node chosen in this turn, with the highest total gain
             // std::size_t v = rs::max_element(totalGainCopy) - totalGainCopy.begin();
-            std::size_t v = n;
-            double maxTotalGain = halfMin<double>;
-            for (std::size_t j = 0; j < n; j++) {
-                if (totalGainCopy[j] < -1e-6) {
-                    continue;
-                }
-                double t = std::max(totalGainCopy[j] - 1e-6, 0.0);
-                if (t > maxTotalGain) {
-                    maxTotalGain = t;
-                    v = j;
-                }
-            }
+            std::size_t v = fineTunedSelect(totalGainCopy);
             // Output is only enabled when iter != nullptr
             if constexpr (!std::is_same_v<OutIter, std::nullptr_t>) {
                 *iter++ = v;
@@ -437,7 +450,7 @@ private:
             std::size_t cur;
             if constexpr (how == HowToChoose::GreedyOne) {
                 // Greedy: chooses the boosted node with maximal total gain
-                cur = rs::max_element(totalGainsBy) - totalGainsBy.begin();
+                cur = fineTunedSelect(totalGainsBy);
             }
             else {
                 // Random greedy: chooses the boosted node randomly among k candidates with maximal total gain
@@ -447,7 +460,11 @@ private:
                 // Gets the first k nodes that makes the maximum total gain
                 rs::nth_element(
                     indices, indices.begin() + (std::ptrdiff_t) nCandidates, [&](std::size_t s1, std::size_t s2) {
-                        return totalGainsBy[s1] > totalGainsBy[s2];
+                        constexpr double eps = 1e-6;
+                        // Tiny values in [0, eps] are treated as 0
+                        auto value1 = totalGainsBy[s1] < -eps ? halfMin<double> : std::max(0.0, totalGainsBy[s1] - eps);
+                        auto value2 = totalGainsBy[s2] < -eps ? halfMin<double> : std::max(0.0, totalGainsBy[s2] - eps);
+                        return value1 > value2;
                     }
                 );
                 // Picks one of the k candidates uniformly randomly

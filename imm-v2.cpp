@@ -4,6 +4,7 @@
 
 #include <future>
 #include <queue>
+#include "global.h"
 #include "graph/pagerank.h"
 #include "greedyselect.h"
 #include "imm.h"
@@ -96,6 +97,46 @@ void makeSketchesFast(PRRGraphCollection&   prrCollection,
             makeSketchFast(collection, graph, linkState, prrGraph, seeds, v);
         };
     }), vs::iota(std::uint64_t{0}, nSamples) | vs::transform([&](auto){return distCenter(gen);}));
+
+    // Merges all the result fragments
+    for (std::size_t i = 0; i < nThreads; i++) {
+        prrCollection.merge(prrCollectionPool[i]);
+    }
+}
+
+void makeSketchesFast(PRRGraphCollection&   prrCollection,
+                      const IMMGraph&       graph,
+                      const SeedSet&        seeds,
+                      rs::range auto&&      centerList,
+                      std::size_t           nThreads) {
+    // PRR-sketch objects for reusing in each thread
+    auto prrGraphPool = std::vector<PRRGraph>{};
+    // Link state objects for reusing in each thread
+    auto linkStatesPool = std::vector<IMMLinkStateSamples>{};
+    // PRR-sketch collection objects for each thread
+    auto prrCollectionPool = std::vector<PRRGraphCollection>{};
+
+    for (std::size_t i = 0; i < nThreads; i++) {
+        // Reserves before calling
+        prrGraphPool.push_back(PRRGraph{{
+                {"nodes", graph.nNodes()},
+                {"links", graph.nLinks()},
+                {"maxIndex", graph.nNodes()}
+        }});
+        // Reserves before calling
+        linkStatesPool.emplace_back(graph.nLinks());
+        // Initializes before calling
+        prrCollectionPool.emplace_back(graph.nNodes(), seeds);
+    }
+
+    runTaskGroup(vs::iota(std::size_t{0}, nThreads) | vs::transform([&](std::size_t tid) {
+        return [&, tid](std::size_t v) {
+            auto& linkState     = linkStatesPool[tid];
+            auto& prrGraph      = prrGraphPool[tid];
+            auto& collection    = prrCollectionPool[tid];
+            makeSketchFast(collection, graph, linkState, prrGraph, seeds, v);
+        };
+    }), centerList));
 
     // Merges all the result fragments
     for (std::size_t i = 0; i < nThreads; i++) {
@@ -317,7 +358,7 @@ auto getCenterList(const IMMGraph& graph, const SeedSet& seeds, std::size_t dist
  */
 void SA_IMM_LB_Static_Process(
         PRRGraphCollectionSA&           prrCollection,
-        const std::vector<std::size_t>& centerCandidates,
+        rs::range auto&&                centerCandidates,
         std::uint64_t                   nSamples,
         const IMMGraph&                 graph,
         const SeedSet&                  seeds,
@@ -381,6 +422,7 @@ IMMResult SA_IMM_LB_Static(const IMMGraph& graph, const SeedSet& seeds, const St
     LOG_INFO(format("Use random greedy? : {}", usesRandomGreedy ? "Yes" : "No"));
 
     auto centerCandidates = getCenterList(graph, seeds, args.sampleDistLimit);
+    rs::shuffle(centerCandidates, createMT19937Generator());
     LOG_INFO(format("#Candidates of center node: {} of {} ({:.2f}%)",
                     centerCandidates.size(), graph.nNodes(), 100.0 * centerCandidates.size() / graph.nNodes()));
 
@@ -388,28 +430,39 @@ IMMResult SA_IMM_LB_Static(const IMMGraph& graph, const SeedSet& seeds, const St
     auto timer = Timer{};
 
     for (auto lastNSamples = std::uint64_t{0}; auto nSamples: args.nSamplesList) {
-        // Appends more samples with count = nSamples - lastNSamples
-        SA_IMM_LB_Static_Process(prrCollection, centerCandidates, nSamples - lastNSamples, graph, seeds, args);
+        // Partitions candidate list to 10 segments
+        constexpr auto nPartitions = std::size_t{10};
 
-        auto resItem = IMMResultItem{};
-        if (usesRandomGreedy) {
-            LOG_INFO(format("SA-RG-IMM: Performs random greedy with nSamples = {}, k = {}",
-                            nSamples, args.k));
-            resItem.totalGain = prrCollection.randomSelect(args.k, std::back_inserter(resItem.boostedNodes));
-        } else {
-            LOG_INFO(format("SA-IMM: Performs greedy selection with nSamples = {}, k = {}",
-                            nSamples, args.k));
-            resItem.totalGain = prrCollection.select(args.k, std::back_inserter(resItem.boostedNodes));
+        for (std::size_t i = 0; i < nPartitions; i++) {
+            auto firstIndex =       i * centerCandidates.size() / nPartitions;
+            auto lastIndex  = (i + 1) * centerCandidates.size() / nPartitions;
+            auto curPartition = rs::subrange(centerCandidates.begin() + firstIndex, centerCandidates.begin() + lastIndex);
+
+            // Appends more samples with count = nSamples - lastNSamples
+            SA_IMM_LB_Static_Process(prrCollection, curPartition, nSamples - lastNSamples, graph, seeds, args);
+
+            auto resItem = IMMResultItem{};
+            if (usesRandomGreedy) {
+                LOG_INFO(format("SA-RG-IMM: Performs random greedy with nSamples = {}, k = {}",
+                                nSamples, args.k));
+                resItem.totalGain = prrCollection.randomSelect(args.k, std::back_inserter(resItem.boostedNodes));
+            } else {
+                LOG_INFO(format("SA-IMM: Performs greedy selection with nSamples = {}, k = {}",
+                                nSamples, args.k));
+                resItem.totalGain = prrCollection.select(args.k, std::back_inserter(resItem.boostedNodes));
+            }
+
+            resItem.timeUsed = timer.elapsed().count();
+            resItem.memoryUsage = prrCollection.totalBytesUsed();
+            LOG_INFO(format("Result item with {} samples per center node: {}",
+                            nSamples, resItem));
+            LOG_INFO(format("Dump sample collection with {} samples per center node: {}",
+                            nSamples, prrCollection.dump()));
+            // Assumes nSamples = 1 ... R
+            // Maps key to 1 ... nPartitions ... R*nPartitions
+            res.items[(nSamples - 1) * nPartitions + i + 1] = resItem;
         }
 
-        resItem.timeUsed = timer.elapsed().count();
-        resItem.memoryUsage = prrCollection.totalBytesUsed();
-        LOG_INFO(format("Result item with {} samples per center node: {}",
-                        nSamples, resItem));
-        LOG_INFO(format("Dump sample collection with {} samples per center node: {}",
-                        nSamples, prrCollection.dump()));
-
-        res.items[nSamples] = resItem;
         lastNSamples = nSamples;
     }
 
